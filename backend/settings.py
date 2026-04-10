@@ -57,6 +57,8 @@ else:
     _allowed_source = str(_allowed_raw).strip()
 ALLOWED_HOSTS = [h.strip() for h in _allowed_source.split(',') if h.strip()]
 
+ALLOWED_HOSTS = ['radar-rbvob.ondigitalocean.app']
+
 
 INSTALLED_APPS = [
     'django.contrib.admin',
