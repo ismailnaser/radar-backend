@@ -1,0 +1,42 @@
+from django.urls import path
+from rest_framework_simplejwt.views import TokenRefreshView
+from .views import (
+    RegisterView,
+    LoginView,
+    VerifyWhatsAppView,
+    ResendOTPView,
+    PrimaryAdminAccountListCreateView,
+    PrimaryAdminAccountToggleView,
+    ShopperNoticesView,
+    AppOpenPingView,
+    AdminMetricsView,
+    AdminUserSearchView,
+    AdminUserToggleActiveView,
+    PublicAnnouncementsView,
+    PrimaryAdminAnnouncementsView,
+    PrimaryAdminAnnouncementDeleteView,
+    AdminNotificationEventsView,
+    MeChangeUsernameView,
+    MeChangePasswordView,
+)
+
+urlpatterns = [
+    path('register/', RegisterView.as_view(), name='auth_register'),
+    path('login/', LoginView.as_view(), name='token_obtain_pair'),
+    path('login/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    path('me/notices/', ShopperNoticesView.as_view(), name='shopper_notices'),
+    path('me/username/', MeChangeUsernameView.as_view(), name='me_change_username'),
+    path('me/password/', MeChangePasswordView.as_view(), name='me_change_password'),
+    path('verify-whatsapp/', VerifyWhatsAppView.as_view(), name='verify_whatsapp'),
+    path('resend-otp/', ResendOTPView.as_view(), name='resend_otp'),
+    path('admin/accounts/', PrimaryAdminAccountListCreateView.as_view(), name='primary_admin_accounts'),
+    path('admin/accounts/<int:pk>/', PrimaryAdminAccountToggleView.as_view(), name='primary_admin_account_toggle'),
+    path('app-open/', AppOpenPingView.as_view(), name='app_open_ping'),
+    path('admin/metrics/', AdminMetricsView.as_view(), name='admin_metrics'),
+    path('admin/users/', AdminUserSearchView.as_view(), name='admin_user_search'),
+    path('admin/users/<int:pk>/', AdminUserToggleActiveView.as_view(), name='admin_user_toggle_active'),
+    path('public/announcements/', PublicAnnouncementsView.as_view(), name='public_announcements'),
+    path('admin/announcements/', PrimaryAdminAnnouncementsView.as_view(), name='primary_admin_announcements'),
+    path('admin/announcements/<int:pk>/', PrimaryAdminAnnouncementDeleteView.as_view(), name='primary_admin_announcement_delete'),
+    path('admin/notifications/', AdminNotificationEventsView.as_view(), name='admin_notifications'),
+]
