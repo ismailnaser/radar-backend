@@ -1,0 +1,28 @@
+لوحة Django Admin على DigitalOcean App Platform
+================================================
+
+1) الرابط الصحيح (من جذر الدومين، ليس تحت /api/)
+   https://اسم-خدمة-الباكند.ondigitalocean.app/admin/
+
+2) توجيه المسارات (Ingress / Routes) — الأهم
+   يجب أن تصل هذه المسارات إلى *نفس* خدمة Django (Web Service) وليس لموقع React الثابت:
+
+   - /admin
+   - /admin/*
+   - /static/*     (ملفات admin + WhiteNoise بعد collectstatic)
+   - /media/*      إذا كنت تخدم الملفات المرفوعة من Django
+
+   إذا كان عندك مسار واحد فقط مثل /api/* → الباكند، فطلب /admin/ يذهب للفرونت وترى React أو صفحة فارغة.
+
+3) متغيرات بيئة مقترحة على خدمة Django
+   DEBUG=0
+   DJANGO_USE_TLS_PROXY=1
+   ALLOWED_HOSTS=اسم-الدومين-الكامل.ondigitalocean.app
+   CSRF_TRUSTED_ORIGINS=https://اسم-الدومين-الكامل.ondigitalocean.app
+
+4) البناء
+   تأكد أن أمر البناء يشغّل: python manage.py collectstatic --noinput
+
+5) سوبر يوزر على السيرفر
+   من Console/Shell في لوحة DO (داخل مجلد backend):
+   python manage.py createsuperuser

@@ -198,6 +198,14 @@ if not DEBUG and _RENDER:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
+# DigitalOcean App Platform (وغيره) خلف بروكسي HTTPS: بدون هذا قد تفشل جلسة لوحة الأدمن وCSRF
+# عرّف DJANGO_USE_TLS_PROXY=1 في متغيرات البيئة على السيرفر
+if not DEBUG and _env_bool('DJANGO_USE_TLS_PROXY', False):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
 _csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()] if _csrf_origins else []
 # إنتاج DO (عند عدم تعريف CSRF_TRUSTED_ORIGINS في البيئة)
