@@ -56,8 +56,9 @@ if _allowed_raw is None or not str(_allowed_raw).strip():
 else:
     _allowed_source = str(_allowed_raw).strip()
 ALLOWED_HOSTS = [h.strip() for h in _allowed_source.split(',') if h.strip()]
-
-ALLOWED_HOSTS = ['radar-rbvob.ondigitalocean.app']
+# إنتاج DigitalOcean (يُضاف إذا لم يكن في المتغير)
+if 'radar-rbvob.ondigitalocean.app' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('radar-rbvob.ondigitalocean.app')
 
 
 INSTALLED_APPS = [
