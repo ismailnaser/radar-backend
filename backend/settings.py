@@ -60,7 +60,7 @@ DEBUG = _env_bool('DEBUG', True)
 # if 'radar-rbvob.ondigitalocean.app' not in ALLOWED_HOSTS:
 #     ALLOWED_HOSTS.append('radar-rbvob.ondigitalocean.app')
 
-ALLOWED_HOSTS=['radar-rbvob.ondigitalocean.app','*']
+ALLOWED_HOSTS=['radar-rbvob.ondigitalocean.app']
 
 CSRF_TRUSTED_ORIGINS=['https://radar-rbvob.ondigitalocean.app']
 
