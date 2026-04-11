@@ -48,22 +48,21 @@ SECRET_KEY = os.environ.get(
 DEBUG = _env_bool('DEBUG', True)
 
 # محلي: localhost و127 وIPv6 (::1) وtestserver — يتفادى DisallowedHost مع البروكسي وVite على ويندوز
-# إنتاج: عرّف ALLOWED_HOSTS في لوحة Render (مثل: اسم-الخدمة.onrender.com)
-# _default_allowed = 'localhost,127.0.0.1,::1,testserver'
-# _allowed_raw = os.environ.get('ALLOWED_HOSTS')
-# if _allowed_raw is None or not str(_allowed_raw).strip():
-#     _allowed_source = _default_allowed
-# else:
-#     _allowed_source = str(_allowed_raw).strip()
-# ALLOWED_HOSTS = [h.strip() for h in _allowed_source.split(',') if h.strip()]
-# # إنتاج DigitalOcean (يُضاف إذا لم يكن في المتغير)
-# if 'radar-rbvob.ondigitalocean.app' not in ALLOWED_HOSTS:
-#     ALLOWED_HOSTS.append('radar-rbvob.ondigitalocean.app')
-
-ALLOWED_HOSTS=['radar-rbvob.ondigitalocean.app']
-
-CSRF_TRUSTED_ORIGINS=['https://radar-rbvob.ondigitalocean.app']
-
+# إنتاج: عرّف ALLOWED_HOSTS في متغيرات البيئة على المنصة
+_default_allowed = 'localhost,127.0.0.1,::1,testserver'
+_allowed_raw = os.environ.get('ALLOWED_HOSTS')
+if _allowed_raw is None or not str(_allowed_raw).strip():
+    _allowed_source = _default_allowed
+else:
+    _allowed_source = str(_allowed_raw).strip()
+ALLOWED_HOSTS = [h.strip() for h in _allowed_source.split(',') if h.strip()]
+if 'radar-rbvob.ondigitalocean.app' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('radar-rbvob.ondigitalocean.app')
+# مع DEBUG محلياً: أضف المضيفين المحليين حتى لو كان ALLOWED_HOSTS في .env للإنتاج فقط
+if DEBUG:
+    for _h in ('127.0.0.1', 'localhost', '::1', 'testserver'):
+        if _h not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(_h)
 
 
 INSTALLED_APPS = [
@@ -200,8 +199,19 @@ if not DEBUG and _RENDER:
     CSRF_COOKIE_SECURE = True
 
 _csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
-if _csrf_origins:
-    CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()]
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()] if _csrf_origins else []
+# إنتاج DO (عند عدم تعريف CSRF_TRUSTED_ORIGINS في البيئة)
+if not DEBUG and 'https://radar-rbvob.ondigitalocean.app' not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append('https://radar-rbvob.ondigitalocean.app')
+if DEBUG:
+    for _o in (
+        'http://127.0.0.1:3000',
+        'http://localhost:3000',
+        'http://127.0.0.1:5173',
+        'http://localhost:5173',
+    ):
+        if _o not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(_o)
 
 ULTRAMSG_INSTANCE_ID = os.environ.get('ULTRAMSG_INSTANCE_ID', '')
 ULTRAMSG_TOKEN = os.environ.get('ULTRAMSG_TOKEN', '')
