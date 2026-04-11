@@ -10,6 +10,8 @@ MAX_GALLERY_IMAGES = 5
 def _abs_url(request, relative_url):
     if not relative_url:
         return None
+    if str(relative_url).startswith(('http://', 'https://')):
+        return relative_url
     if not request or not isinstance(request, HttpRequest):
         return relative_url
     try:

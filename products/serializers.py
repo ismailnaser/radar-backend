@@ -31,6 +31,8 @@ from .media_utils import (
 def _absolute_media_url(request, relative_url):
     if not relative_url:
         return relative_url
+    if str(relative_url).startswith(('http://', 'https://')):
+        return relative_url
     if not request or not isinstance(request, HttpRequest):
         return relative_url
     try:

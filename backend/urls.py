@@ -29,14 +29,16 @@ urlpatterns = [
     path('api/orders/', include('orders.urls')),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-else:
-    urlpatterns += [
-        re_path(
-            r'^media/(?P<path>.*)$',
-            serve,
-            {'document_root': str(settings.MEDIA_ROOT)},
-        ),
-    ]
+# الوسائط على DigitalOcean Spaces لا تُخدم من Django
+if not getattr(settings, 'USE_DO_SPACES', False):
+    if settings.DEBUG:
+        urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    else:
+        urlpatterns += [
+            re_path(
+                r'^media/(?P<path>.*)$',
+                serve,
+                {'document_root': str(settings.MEDIA_ROOT)},
+            ),
+        ]
 

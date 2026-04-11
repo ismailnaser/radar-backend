@@ -80,6 +80,23 @@ INSTALLED_APPS = [
     'orders.apps.OrdersConfig',
 ]
 
+# DigitalOcean Spaces (S3-compatible)
+_spaces_key = (os.environ.get('AWS_ACCESS_KEY_ID') or '').strip()
+_spaces_secret = (os.environ.get('AWS_SECRET_ACCESS_KEY') or '').strip()
+_spaces_bucket = (os.environ.get('AWS_STORAGE_BUCKET_NAME') or '').strip()
+_spaces_endpoint = (os.environ.get('AWS_S3_ENDPOINT_URL') or '').strip()
+_spaces_config_ok = bool(_spaces_key and _spaces_secret and _spaces_bucket and _spaces_endpoint)
+_use_flag = (os.environ.get('USE_DO_SPACES') or '').strip().lower()
+if _use_flag in ('0', 'false', 'no', 'off'):
+    _use_do_spaces = False
+elif _use_flag in ('1', 'true', 'yes', 'on'):
+    _use_do_spaces = True
+else:
+    # غير محدّد: تفعيل تلقائي عند اكتمال مفاتيح Spaces ونقطة النهاية
+    _use_do_spaces = _spaces_config_ok
+if _use_do_spaces:
+    INSTALLED_APPS.insert(6, 'storages')
+
 # WhiteNoise للإنتاج فقط — في التطوير يعرض runserver الـ static من التطبيقات بدون تعارض
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -155,13 +172,71 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-if not DEBUG:
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
-else:
-    STATICFILES_STORAGE = 'django.contrib.staticfiles.storage.StaticFilesStorage'
+
+_staticfiles_backend = (
+    'django.contrib.staticfiles.storage.StaticFilesStorage'
+    if DEBUG
+    else 'whitenoise.storage.CompressedStaticFilesStorage'
+)
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+
+USE_DO_SPACES = _use_do_spaces
+
+if _use_do_spaces:
+    # مفاتيح Spaces (أنشئها من لوحة DO: API → Spaces Keys)
+    AWS_ACCESS_KEY_ID = _spaces_key
+    AWS_SECRET_ACCESS_KEY = _spaces_secret
+    AWS_STORAGE_BUCKET_NAME = _spaces_bucket
+    # مثال: https://nyc3.digitaloceanspaces.com  (بدون اسم الـ bucket في المسار)
+    AWS_S3_ENDPOINT_URL = _spaces_endpoint.rstrip('/')
+    # المنطقة نفسها كما في لوحة DO (مثل nyc3, fra1, sgp1)
+    AWS_S3_REGION_NAME = (os.environ.get('AWS_S3_REGION_NAME') or 'nyc3').strip()
+    AWS_S3_SIGNATURE_VERSION = 's3v4'
+    AWS_S3_ADDRESSING_STYLE = 'virtual'
+    # روابط عامة بدون توقيع؛ الرفع بصلاحية قراءة عامة حتى يعمل الرابط من المتصفح/CDN
+    _acl = (os.environ.get('AWS_DEFAULT_ACL') or 'public-read').strip()
+    AWS_DEFAULT_ACL = _acl if _acl.lower() not in ('none', '') else None
+    AWS_QUERYSTRING_AUTH = _env_bool('AWS_QUERYSTRING_AUTH', False)
+    AWS_S3_OBJECT_PARAMETERS = {
+        'CacheControl': 'max-age=86400',
+    }
+
+    def _host_from_url(value: str) -> str:
+        u = value.strip().rstrip('/')
+        for p in ('https://', 'http://'):
+            if u.startswith(p):
+                u = u[len(p) :]
+        return u.split('/')[0] if u else ''
+
+    # CDN: اسم النطاق فقط (بدون https://) — يُستخدم في django-storages لبناء روابط الملفات
+    _cdn_env = (os.environ.get('AWS_S3_CUSTOM_DOMAIN') or os.environ.get('SPACES_CDN_DOMAIN') or '').strip()
+    _media_url_env = (os.environ.get('MEDIA_URL') or '').strip()
+    _custom_domain = _host_from_url(_cdn_env) if _cdn_env else ''
+    if not _custom_domain and _media_url_env.startswith(('http://', 'https://')):
+        _custom_domain = _host_from_url(_media_url_env)
+    if _custom_domain:
+        AWS_S3_CUSTOM_DOMAIN = _custom_domain
+
+    if _media_url_env:
+        MEDIA_URL = _media_url_env if _media_url_env.endswith('/') else _media_url_env + '/'
+    elif _custom_domain:
+        # نفس النطاق في django-storages لبناء file.url على الـ CDN
+        MEDIA_URL = f'https://{_custom_domain}/'
+    elif AWS_STORAGE_BUCKET_NAME and AWS_S3_REGION_NAME:
+        MEDIA_URL = (
+            f'https://{AWS_STORAGE_BUCKET_NAME}.{AWS_S3_REGION_NAME}.digitaloceanspaces.com/'
+        )
+
+    STORAGES = {
+        'default': {'BACKEND': 'storages.backends.s3boto3.S3Boto3Storage'},
+        'staticfiles': {'BACKEND': _staticfiles_backend},
+    }
+    # Django 4.2+ يفضّل STORAGES؛ هذا السطر يوضّح نفس الخلفية (الملفات الافتراضية = S3)
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+else:
+    STATICFILES_STORAGE = _staticfiles_backend
 
 AUTH_USER_MODEL = 'users.CustomUser'
 

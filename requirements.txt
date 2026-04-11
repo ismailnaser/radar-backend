@@ -9,3 +9,5 @@ dj-database-url>=2.1.0
 whitenoise>=6.6.0
 gunicorn>=22.0.0
 requests
+django-storages[s3]>=1.14
+boto3>=1.34
