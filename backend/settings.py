@@ -49,16 +49,21 @@ DEBUG = _env_bool('DEBUG', True)
 
 # محلي: localhost و127 وIPv6 (::1) وtestserver — يتفادى DisallowedHost مع البروكسي وVite على ويندوز
 # إنتاج: عرّف ALLOWED_HOSTS في لوحة Render (مثل: اسم-الخدمة.onrender.com)
-_default_allowed = 'localhost,127.0.0.1,::1,testserver'
-_allowed_raw = os.environ.get('ALLOWED_HOSTS')
-if _allowed_raw is None or not str(_allowed_raw).strip():
-    _allowed_source = _default_allowed
-else:
-    _allowed_source = str(_allowed_raw).strip()
-ALLOWED_HOSTS = [h.strip() for h in _allowed_source.split(',') if h.strip()]
-# إنتاج DigitalOcean (يُضاف إذا لم يكن في المتغير)
-if 'radar-rbvob.ondigitalocean.app' not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append('radar-rbvob.ondigitalocean.app')
+# _default_allowed = 'localhost,127.0.0.1,::1,testserver'
+# _allowed_raw = os.environ.get('ALLOWED_HOSTS')
+# if _allowed_raw is None or not str(_allowed_raw).strip():
+#     _allowed_source = _default_allowed
+# else:
+#     _allowed_source = str(_allowed_raw).strip()
+# ALLOWED_HOSTS = [h.strip() for h in _allowed_source.split(',') if h.strip()]
+# # إنتاج DigitalOcean (يُضاف إذا لم يكن في المتغير)
+# if 'radar-rbvob.ondigitalocean.app' not in ALLOWED_HOSTS:
+#     ALLOWED_HOSTS.append('radar-rbvob.ondigitalocean.app')
+
+ALLOWED_HOSTS=['radar-rbvob.ondigitalocean.app','*']
+
+CSRF_TRUSTED_ORIGINS=['https://radar-rbvob.ondigitalocean.app']
+
 
 
 INSTALLED_APPS = [
