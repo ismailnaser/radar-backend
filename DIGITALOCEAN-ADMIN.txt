@@ -1,18 +1,19 @@
 لوحة Django Admin على DigitalOcean App Platform
 ================================================
 
-1) الرابط الصحيح (من جذر الدومين، ليس تحت /api/)
-   https://اسم-خدمة-الباكند.ondigitalocean.app/admin/
+1) الرابط الصحيح (لوحة Django Admin تحت بادئة api/)
+   https://اسم-خدمة-الباكند.ondigitalocean.app/api/admin/
 
 2) توجيه المسارات (Ingress / Routes) — الأهم
    يجب أن تصل هذه المسارات إلى *نفس* خدمة Django (Web Service) وليس لموقع React الثابت:
 
-   - /admin
-   - /admin/*
+   - /api/admin
+   - /api/admin/*
+   - /api/*        (واجهة REST إن وُجدت)
    - /static/*     (ملفات admin + WhiteNoise بعد collectstatic)
    - /media/*      إذا كنت تخدم الملفات المرفوعة من Django
 
-   إذا كان عندك مسار واحد فقط مثل /api/* → الباكند، فطلب /admin/ يذهب للفرونت وترى React أو صفحة فارغة.
+   ملاحظة: واجهة React تستخدم مسارات مثل /admin للوحة التطبيق — مختلفة عن Django Admin أعلاه.
 
 3) متغيرات بيئة مقترحة على خدمة Django
    DEBUG=0
