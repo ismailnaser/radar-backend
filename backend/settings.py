@@ -90,23 +90,18 @@ _use_do_spaces = _spaces_config_ok
 if _use_do_spaces:
     INSTALLED_APPS.insert(6, 'storages')
 
-# WhiteNoise للإنتاج فقط — في التطوير يعرض runserver الـ static من التطبيقات بدون تعارض
+# WhiteNoise مباشرة بعد SecurityMiddleware حتى تُخدم ملفات admin/static في الإنتاج بشكل صحيح
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
+    'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
+    'django.middleware.common.CommonMiddleware',
+    'django.middleware.csrf.CsrfViewMiddleware',
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'django.contrib.messages.middleware.MessageMiddleware',
+    'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
-if not DEBUG:
-    MIDDLEWARE.append('whitenoise.middleware.WhiteNoiseMiddleware')
-MIDDLEWARE.extend(
-    [
-        'django.contrib.sessions.middleware.SessionMiddleware',
-        'corsheaders.middleware.CorsMiddleware',
-        'django.middleware.common.CommonMiddleware',
-        'django.middleware.csrf.CsrfViewMiddleware',
-        'django.contrib.auth.middleware.AuthenticationMiddleware',
-        'django.contrib.messages.middleware.MessageMiddleware',
-        'django.middleware.clickjacking.XFrameOptionsMiddleware',
-    ]
-)
 
 ROOT_URLCONF = 'backend.urls'
 
@@ -164,13 +159,14 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = 'static/'
-STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 _staticfiles_backend = (
     'django.contrib.staticfiles.storage.StaticFilesStorage'
     if DEBUG
-    else 'whitenoise.storage.CompressedStaticFilesStorage'
+    else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 )
+STATICFILES_STORAGE = _staticfiles_backend
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
@@ -237,8 +233,6 @@ if _use_do_spaces:
     }
     # Django 4.2+ يفضّل STORAGES؛ هذا السطر يوضّح نفس الخلفية (الملفات الافتراضية = S3)
     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-else:
-    STATICFILES_STORAGE = _staticfiles_backend
 
 AUTH_USER_MODEL = 'users.CustomUser'
 
