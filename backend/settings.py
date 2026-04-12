@@ -84,8 +84,7 @@ INSTALLED_APPS = [
 _spaces_key = (os.environ.get('AWS_ACCESS_KEY_ID') or '').strip()
 _spaces_secret = (os.environ.get('AWS_SECRET_ACCESS_KEY') or '').strip()
 _spaces_bucket = (os.environ.get('AWS_STORAGE_BUCKET_NAME') or '').strip()
-_spaces_endpoint = (os.environ.get('AWS_S3_ENDPOINT_URL') or '').strip()
-_spaces_config_ok = bool(_spaces_key and _spaces_secret and _spaces_bucket and _spaces_endpoint)
+_spaces_config_ok = bool(_spaces_key and _spaces_secret and _spaces_bucket)
 # إذا وُجدت كل مفاتيح Spaces ونقطة النهاية يُفعّل التخزين دائماً (لا يُعطّله USE_DO_SPACES)
 _use_do_spaces = _spaces_config_ok
 if _use_do_spaces:
@@ -183,11 +182,12 @@ if _use_do_spaces:
     AWS_ACCESS_KEY_ID = _spaces_key
     AWS_SECRET_ACCESS_KEY = _spaces_secret
     AWS_STORAGE_BUCKET_NAME = _spaces_bucket
-    # مثال: https://fra1.digitaloceanspaces.com  (بدون اسم الـ bucket في المسار)
-    AWS_S3_ENDPOINT_URL = _spaces_endpoint.rstrip('/')
     AWS_S3_REGION_NAME = 'fra1'
     AWS_S3_SIGNATURE_VERSION = 's3v4'
     AWS_S3_ADDRESSING_STYLE = 'virtual'
+    # عنوان boto3 / botocore: الإقليم فقط — لا تضمّن اسم الـ bucket في الـ host (يُمرَّر عبر AWS_STORAGE_BUCKET_NAME).
+    # شكل خاطئ يُسبب SSLError أو hostname مكرر: https://bucket.fra1.digitaloceanspaces.com
+    AWS_S3_ENDPOINT_URL = f'https://{AWS_S3_REGION_NAME}.digitaloceanspaces.com'
     # صلاحيات القراءة العامة للملفات المرفوعة (Spaces / S3-compatible)
     AWS_DEFAULT_ACL = 'public-read'
     # روابط مباشرة للملفات (بدون ?X-Amz-...)
@@ -201,12 +201,23 @@ if _use_do_spaces:
                 u = u[len(p) :]
         return u.split('/')[0] if u else ''
 
+    def _dedupe_bucket_in_hostname(hostname: str, bucket: str) -> str:
+        """يمنع تكرار اسم الـ bucket في النطاق (مثل radar-images.radar-images.fra1...)."""
+        if not hostname or not bucket:
+            return hostname
+        h = hostname.strip().lower().rstrip('.')
+        b = bucket.strip().lower() + '.'
+        while h.startswith(b + b):
+            h = h[len(b) :]
+        return h
+
     # CDN: اسم النطاق فقط (بدون https://) — يُستخدم في django-storages لبناء روابط الملفات
     _cdn_env = (os.environ.get('AWS_S3_CUSTOM_DOMAIN') or os.environ.get('SPACES_CDN_DOMAIN') or '').strip()
     _media_url_env = (os.environ.get('MEDIA_URL') or '').strip()
     _custom_domain = _host_from_url(_cdn_env) if _cdn_env else ''
     if not _custom_domain and _media_url_env.startswith(('http://', 'https://')):
         _custom_domain = _host_from_url(_media_url_env)
+    _custom_domain = _dedupe_bucket_in_hostname(_custom_domain, AWS_STORAGE_BUCKET_NAME)
     if _custom_domain:
         AWS_S3_CUSTOM_DOMAIN = _custom_domain
 
