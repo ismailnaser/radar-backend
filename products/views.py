@@ -1,3 +1,6 @@
+import logging
+import traceback
+
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.response import Response
@@ -23,6 +26,9 @@ from decimal import Decimal
 from django.db.models import Q, Sum
 
 from .ad_lifecycle import purge_expired_sponsored_ads
+
+logger = logging.getLogger(__name__)
+
 
 class MerchantRequiredPermission(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -76,6 +82,17 @@ class AdRequestView(generics.ListCreateAPIView):
         ctx = super().get_serializer_context()
         ctx["request"] = self.request
         return ctx
+
+    def create(self, request, *args, **kwargs):
+        """يلتقط أي استثناء أثناء إنشاء طلب الإعلان ويطبع التفاصيل كاملة في السجلات (stdout + logger)."""
+        try:
+            return super().create(request, *args, **kwargs)
+        except Exception as exc:
+            err_line = f"[POST merchant/ads] {type(exc).__name__}: {exc}"
+            print(err_line, flush=True)
+            print(traceback.format_exc(), flush=True)
+            logger.exception("POST /api/products/merchant/ads/ failed: %s", err_line)
+            raise
 
     def perform_create(self, serializer):
         store = StoreProfile.objects.get(user=self.request.user)
