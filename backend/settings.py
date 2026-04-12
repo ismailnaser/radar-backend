@@ -86,14 +86,8 @@ _spaces_secret = (os.environ.get('AWS_SECRET_ACCESS_KEY') or '').strip()
 _spaces_bucket = (os.environ.get('AWS_STORAGE_BUCKET_NAME') or '').strip()
 _spaces_endpoint = (os.environ.get('AWS_S3_ENDPOINT_URL') or '').strip()
 _spaces_config_ok = bool(_spaces_key and _spaces_secret and _spaces_bucket and _spaces_endpoint)
-_use_flag = (os.environ.get('USE_DO_SPACES') or '').strip().lower()
-if _use_flag in ('0', 'false', 'no', 'off'):
-    _use_do_spaces = False
-elif _use_flag in ('1', 'true', 'yes', 'on'):
-    _use_do_spaces = True
-else:
-    # غير محدّد: تفعيل تلقائي عند اكتمال مفاتيح Spaces ونقطة النهاية
-    _use_do_spaces = _spaces_config_ok
+# إذا وُجدت كل مفاتيح Spaces ونقطة النهاية يُفعّل التخزين دائماً (لا يُعطّله USE_DO_SPACES)
+_use_do_spaces = _spaces_config_ok
 if _use_do_spaces:
     INSTALLED_APPS.insert(6, 'storages')
 
@@ -189,10 +183,9 @@ if _use_do_spaces:
     AWS_ACCESS_KEY_ID = _spaces_key
     AWS_SECRET_ACCESS_KEY = _spaces_secret
     AWS_STORAGE_BUCKET_NAME = _spaces_bucket
-    # مثال: https://nyc3.digitaloceanspaces.com  (بدون اسم الـ bucket في المسار)
+    # مثال: https://fra1.digitaloceanspaces.com  (بدون اسم الـ bucket في المسار)
     AWS_S3_ENDPOINT_URL = _spaces_endpoint.rstrip('/')
-    # المنطقة كما في لوحة DigitalOcean Spaces (افتراضي: فرانكفورت — يمكن تجاوزها بـ AWS_S3_REGION_NAME)
-    AWS_S3_REGION_NAME = (os.environ.get('AWS_S3_REGION_NAME') or 'fra1').strip()
+    AWS_S3_REGION_NAME = 'fra1'
     AWS_S3_SIGNATURE_VERSION = 's3v4'
     AWS_S3_ADDRESSING_STYLE = 'virtual'
     # صلاحيات القراءة العامة للملفات المرفوعة (Spaces / S3-compatible)
