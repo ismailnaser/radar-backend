@@ -191,19 +191,15 @@ if _use_do_spaces:
     AWS_STORAGE_BUCKET_NAME = _spaces_bucket
     # مثال: https://nyc3.digitaloceanspaces.com  (بدون اسم الـ bucket في المسار)
     AWS_S3_ENDPOINT_URL = _spaces_endpoint.rstrip('/')
-    # المنطقة نفسها كما في لوحة DO (مثل nyc3, fra1, sgp1)
-    AWS_S3_REGION_NAME = (os.environ.get('AWS_S3_REGION_NAME') or 'nyc3').strip()
+    # المنطقة كما في لوحة DigitalOcean Spaces (افتراضي: فرانكفورت — يمكن تجاوزها بـ AWS_S3_REGION_NAME)
+    AWS_S3_REGION_NAME = (os.environ.get('AWS_S3_REGION_NAME') or 'fra1').strip()
     AWS_S3_SIGNATURE_VERSION = 's3v4'
     AWS_S3_ADDRESSING_STYLE = 'virtual'
-    # روابط عامة بدون توقيع؛ الرفع بصلاحية قراءة عامة حتى يعمل الرابط من المتصفح/CDN
-    _acl = (os.environ.get('AWS_DEFAULT_ACL') or 'public-read').strip()
-    AWS_DEFAULT_ACL = _acl if _acl.lower() not in ('none', '') else None
-    # روابط مباشرة للملفات (بدون ?X-Amz-...) — مناسب للـ CDN والواجهة
+    # صلاحيات القراءة العامة للملفات المرفوعة (Spaces / S3-compatible)
+    AWS_DEFAULT_ACL = 'public-read'
+    # روابط مباشرة للملفات (بدون ?X-Amz-...)
     AWS_QUERYSTRING_AUTH = False
-    AWS_S3_OBJECT_PARAMETERS = {
-        'ACL': 'public-read',
-        'CacheControl': 'max-age=86400',
-    }
+    AWS_S3_OBJECT_PARAMETERS = {'ACL': 'public-read'}
 
     def _host_from_url(value: str) -> str:
         u = value.strip().rstrip('/')
