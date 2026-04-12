@@ -198,8 +198,10 @@ if _use_do_spaces:
     # روابط عامة بدون توقيع؛ الرفع بصلاحية قراءة عامة حتى يعمل الرابط من المتصفح/CDN
     _acl = (os.environ.get('AWS_DEFAULT_ACL') or 'public-read').strip()
     AWS_DEFAULT_ACL = _acl if _acl.lower() not in ('none', '') else None
-    AWS_QUERYSTRING_AUTH = _env_bool('AWS_QUERYSTRING_AUTH', False)
+    # روابط مباشرة للملفات (بدون ?X-Amz-...) — مناسب للـ CDN والواجهة
+    AWS_QUERYSTRING_AUTH = False
     AWS_S3_OBJECT_PARAMETERS = {
+        'ACL': 'public-read',
         'CacheControl': 'max-age=86400',
     }
 
