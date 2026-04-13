@@ -20,7 +20,15 @@ from datetime import timedelta
 from stores.models import StoreProfile
 from products.views import AdminRequiredPermission
 from .models import AppOpenStat
-from .models import SiteAnnouncement, AdminNotificationEvent
+from .models import SiteAnnouncement, AdminNotificationEvent, AdminWebPushSubscription
+
+import json
+import os
+try:
+    from pywebpush import webpush, WebPushException
+except Exception:  # pragma: no cover
+    webpush = None
+    WebPushException = Exception
 
 User = get_user_model()
 
@@ -404,3 +412,81 @@ class AdminNotificationEventsView(APIView):
         latest_id = latest.id if latest else 0
 
         return Response({"results": out, "latest_id": latest_id})
+
+
+class AdminPushPublicKeyView(APIView):
+    """يرجع VAPID public key للواجهة للاشتراك بـ Push."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        key = (os.getenv("VAPID_PUBLIC_KEY") or "").strip()
+        if not key:
+            return Response({"error": "VAPID_PUBLIC_KEY غير مضبوط على الخادم."}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response({"publicKey": key})
+
+
+class AdminPushSubscribeView(APIView):
+    """تسجيل/تحديث اشتراك Push للمدير."""
+
+    permission_classes = [AdminRequiredPermission]
+
+    def post(self, request):
+        sub = request.data.get("subscription") or request.data
+        endpoint = (sub.get("endpoint") or "").strip() if isinstance(sub, dict) else ""
+        keys = sub.get("keys") if isinstance(sub, dict) else None
+        p256dh = (keys.get("p256dh") or "").strip() if isinstance(keys, dict) else ""
+        auth = (keys.get("auth") or "").strip() if isinstance(keys, dict) else ""
+        if not endpoint or not p256dh or not auth:
+            return Response({"error": "بيانات الاشتراك غير مكتملة."}, status=status.HTTP_400_BAD_REQUEST)
+        ua = (request.headers.get("User-Agent") or "")[:240]
+        row, _created = AdminWebPushSubscription.objects.update_or_create(
+            endpoint=endpoint,
+            defaults={"user": request.user, "p256dh": p256dh, "auth": auth, "user_agent": ua},
+        )
+        return Response({"ok": True, "id": row.id})
+
+
+class AdminPushUnsubscribeView(APIView):
+    """حذف اشتراك Push (عند تعطيل الإشعارات أو تغيير الجهاز)."""
+
+    permission_classes = [AdminRequiredPermission]
+
+    def post(self, request):
+        sub = request.data.get("subscription") or request.data
+        endpoint = (sub.get("endpoint") or "").strip() if isinstance(sub, dict) else ""
+        if not endpoint:
+            return Response({"error": "endpoint مطلوب."}, status=status.HTTP_400_BAD_REQUEST)
+        AdminWebPushSubscription.objects.filter(endpoint=endpoint).delete()
+        return Response({"ok": True})
+
+
+def _send_admin_web_push(title: str, body: str, url: str = "/admin"):
+    """يرسل Push لكل اشتراكات المدراء. فشل جهاز لا يوقف الباقي."""
+
+    if webpush is None:
+        return
+
+    public_key = (os.getenv("VAPID_PUBLIC_KEY") or "").strip()
+    private_key = (os.getenv("VAPID_PRIVATE_KEY") or "").strip()
+    subject = (os.getenv("VAPID_SUBJECT") or "mailto:admin@radar.local").strip()
+    if not public_key or not private_key:
+        return
+
+    payload = {"title": title or "رادار — إشعار", "body": body or "", "url": url or "/admin"}
+    vapid_claims = {"sub": subject}
+
+    for s in AdminWebPushSubscription.objects.select_related("user").all()[:500]:
+        try:
+            webpush(
+                subscription_info={"endpoint": s.endpoint, "keys": {"p256dh": s.p256dh, "auth": s.auth}},
+                data=json.dumps(payload),
+                vapid_private_key=private_key,
+                vapid_claims=vapid_claims,
+            )
+        except WebPushException:
+            # endpoint expired -> remove
+            AdminWebPushSubscription.objects.filter(endpoint=s.endpoint).delete()
+        except Exception:
+            # ignore other failures
+            continue

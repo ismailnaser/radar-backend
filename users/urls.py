@@ -16,6 +16,9 @@ from .views import (
     PrimaryAdminAnnouncementsView,
     PrimaryAdminAnnouncementDeleteView,
     AdminNotificationEventsView,
+    AdminPushPublicKeyView,
+    AdminPushSubscribeView,
+    AdminPushUnsubscribeView,
     MeChangeUsernameView,
     MeChangePasswordView,
 )
@@ -39,4 +42,7 @@ urlpatterns = [
     path('admin/announcements/', PrimaryAdminAnnouncementsView.as_view(), name='primary_admin_announcements'),
     path('admin/announcements/<int:pk>/', PrimaryAdminAnnouncementDeleteView.as_view(), name='primary_admin_announcement_delete'),
     path('admin/notifications/', AdminNotificationEventsView.as_view(), name='admin_notifications'),
+    path('admin/push/public-key/', AdminPushPublicKeyView.as_view(), name='admin_push_public_key'),
+    path('admin/push/subscribe/', AdminPushSubscribeView.as_view(), name='admin_push_subscribe'),
+    path('admin/push/unsubscribe/', AdminPushUnsubscribeView.as_view(), name='admin_push_unsubscribe'),
 ]

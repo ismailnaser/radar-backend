@@ -10,3 +10,4 @@ class UsersConfig(AppConfig):
     def ready(self):
         # تحميل تسجيل الأدمن مع التطبيق (يعتمد django أيضاً على autodiscover)
         import users.admin  # noqa: F401
+        import users.signals  # noqa: F401

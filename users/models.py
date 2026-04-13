@@ -1,6 +1,7 @@
 import uuid
 
 from django.contrib.auth.models import AbstractUser, BaseUserManager
+from django.conf import settings
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 
@@ -137,3 +138,32 @@ class AdminNotificationEvent(models.Model):
 
     def __str__(self):
         return f"{self.event_type}: {self.title}"
+
+
+class AdminWebPushSubscription(models.Model):
+    """Web Push subscriptions لأجهزة/متصفحات المدراء.
+
+    ملاحظة: هذه ليست إشعارات داخل التطبيق؛ هي اشتراك Push يتيح إرسال إشعار حتى لو كان التطبيق مغلقاً.
+    """
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="admin_push_subscriptions",
+        verbose_name="المدير",
+    )
+    endpoint = models.URLField("endpoint", max_length=600, unique=True)
+    p256dh = models.CharField("p256dh", max_length=256)
+    auth = models.CharField("auth", max_length=256)
+    user_agent = models.CharField("user agent", max_length=240, blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at", "-id"]
+        verbose_name = "اشتراك Push (أدمن)"
+        verbose_name_plural = "اشتراكات Push (أدمن)"
+
+    def __str__(self):
+        return f"{self.user_id} — {self.endpoint[:48]}..."

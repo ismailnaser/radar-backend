@@ -33,6 +33,8 @@ class CartItemSerializer(serializers.ModelSerializer):
     effective_unit_price = serializers.SerializerMethodField()
     line_total_effective = serializers.SerializerMethodField()
     is_promotional_line = serializers.SerializerMethodField()
+    is_expired_line = serializers.BooleanField(read_only=True)
+    expired_message = serializers.CharField(read_only=True)
 
     class Meta:
         model = CartItem
@@ -54,6 +56,8 @@ class CartItemSerializer(serializers.ModelSerializer):
             'effective_unit_price',
             'line_total_effective',
             'is_promotional_line',
+            'is_expired_line',
+            'expired_message',
         )
         read_only_fields = ('standalone_line_title',)
 
@@ -123,6 +127,8 @@ class CartItemSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request and cart and cart.user_id != request.user.id:
             raise serializers.ValidationError({'cart': 'غير مصرح باستخدام هذه السلة'})
+        if self.instance and getattr(self.instance, 'is_expired_line', False):
+            raise serializers.ValidationError({'detail': 'هذا السطر منتهي الصلاحية ولا يمكن تعديله. احذفه من السلة.'})
         sa = attrs.get('sponsored_ad')
         if sa is None and self.instance:
             sa = self.instance.sponsored_ad
@@ -191,31 +197,51 @@ class SharedCartPublicSerializer(serializers.ModelSerializer):
             'product__gallery_images',
             'sponsored_ad__gallery_images',
         ).all():
+            store_id = None
+            store_name = ''
+            product_id = None
+            product_features = []
             if it.product_id:
                 p = it.product
+                product_id = p.id
+                store_id = p.store_id
+                store_name = getattr(getattr(p, 'store', None), 'store_name', '') or ''
                 name = p.name
                 desc = p.description or ''
+                product_features = getattr(p, 'product_features', None) or []
                 catalog_price = str(p.price)
                 imgs = product_gallery_urls(p, request)
                 img = imgs[0] if imgs else None
             else:
                 name = (it.standalone_line_title or '').strip() or 'عرض ممول'
-                desc = ''
-                catalog_price = ''
                 sa = it.sponsored_ad
+                if sa:
+                    store_id = sa.store_id
+                    store_name = getattr(getattr(sa, 'store', None), 'store_name', '') or ''
+                    desc = (sa.description or '').strip()
+                else:
+                    desc = ''
+                catalog_price = ''
                 imgs = sponsored_ad_gallery_urls(sa, request) if sa else []
                 img = imgs[0] if imgs else None
             unit = it.effective_unit_price
             line_total = it.line_total_effective
             out.append({
+                'id': it.id,
+                'product_id': product_id,
+                'store_id': store_id,
+                'store_name': store_name,
                 'product_name': name,
                 'description': desc,
+                'product_features': product_features,
                 'price': str(unit),
                 'catalog_price': catalog_price,
                 'quantity': it.quantity,
                 'line_total': str(line_total),
                 'is_promotional_line': it.is_promotional_line,
                 'is_standalone_ad_line': it.product_id is None,
+                'is_expired_line': bool(getattr(it, 'is_expired_line', False)),
+                'expired_message': (getattr(it, 'expired_message', '') or '').strip(),
                 'note': it.note or '',
                 'image': img or None,
                 'images': imgs,

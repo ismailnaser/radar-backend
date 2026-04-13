@@ -46,6 +46,8 @@ class CartItem(models.Model):
     )
     quantity = models.PositiveIntegerField("الكمية", default=1)
     note = models.TextField("ملاحظة على المنتج", blank=True, default='')
+    is_expired_line = models.BooleanField("سطر منتهي الصلاحية", default=False, db_index=True)
+    expired_message = models.CharField("رسالة انتهاء الصلاحية", max_length=255, blank=True, default='')
 
     @property
     def effective_unit_price(self):

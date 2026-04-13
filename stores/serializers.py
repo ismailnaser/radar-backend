@@ -87,6 +87,12 @@ class ServiceSerializer(serializers.ModelSerializer):
 class StoreProfileSerializer(serializers.ModelSerializer):
     category_name = serializers.ReadOnlyField(source='category.name')
     category_image = serializers.SerializerMethodField()
+    categories = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Category.objects.all(),
+        required=False,
+    )
+    categories_names = serializers.SerializerMethodField()
     rating_average = serializers.SerializerMethodField()
     rating_count = serializers.SerializerMethodField()
     contact_whatsapp_url = serializers.SerializerMethodField()
@@ -96,6 +102,7 @@ class StoreProfileSerializer(serializers.ModelSerializer):
         model = StoreProfile
         fields = (
             'id', 'store_name', 'description', 'logo', 'category', 'category_name',
+            'categories', 'categories_names',
             'category_image', 'latitude', 'longitude', 'location_address',
             'rating_average', 'rating_count',
             'contact_whatsapp', 'contact_whatsapp_url',
@@ -118,6 +125,12 @@ class StoreProfileSerializer(serializers.ModelSerializer):
     def get_rating_count(self, obj):
         _, n = store_rating_summary(obj)
         return n
+
+    def get_categories_names(self, obj):
+        try:
+            return [c.name for c in obj.categories.all()]
+        except Exception:
+            return []
 
     def get_contact_whatsapp_url(self, obj):
         return _contact_whatsapp_url(getattr(obj, 'contact_whatsapp', '') or '')
@@ -182,14 +195,19 @@ class StoreProfileSerializer(serializers.ModelSerializer):
         return data
 
     def validate(self, attrs):
-        for key in ('store_features', 'business_hours_weekly'):
+        for key in ('store_features', 'business_hours_weekly', 'categories'):
             if key not in attrs:
                 continue
             val = attrs[key]
             if isinstance(val, str):
                 s = val.strip()
                 if not s:
-                    attrs[key] = [] if key == 'store_features' else {}
+                    if key == 'store_features':
+                        attrs[key] = []
+                    elif key == 'categories':
+                        attrs[key] = []
+                    else:
+                        attrs[key] = {}
                 else:
                     try:
                         attrs[key] = json.loads(s)
@@ -210,6 +228,28 @@ class StoreProfileSerializer(serializers.ModelSerializer):
                     'latitude': 'حدد موقع المتجر على الخريطة داخل قطاع غزة — الإحداثيات الحالية قريبة جداً من صفر.',
                 })
         return attrs
+
+    def update(self, instance, validated_data):
+        cats = validated_data.pop('categories', None)
+        inst = super().update(instance, validated_data)
+        if cats is not None:
+            # cats may be list of ids (from JSON) or list of Category instances
+            try:
+                inst.categories.set(cats)
+            except TypeError:
+                # if ids were provided, resolve them
+                inst.categories.set(Category.objects.filter(id__in=cats))
+
+            # حافظ على حقل category القديم (الأول كافتراضي) لتوافق الصفحات القديمة
+            first = None
+            try:
+                first = inst.categories.first()
+            except Exception:
+                first = None
+            if first and (inst.category_id is None or inst.category_id not in inst.categories.values_list('id', flat=True)):
+                inst.category = first
+                inst.save(update_fields=['category'])
+        return inst
 
 
 class StoreProductMiniSerializer(serializers.ModelSerializer):

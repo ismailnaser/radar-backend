@@ -47,7 +47,20 @@ def apply_sponsored_ad_expiry_side_effects(instance):
         if instance.product_id is None:
             cart = item.cart
             _append_cart_note_standalone_ad_removed(cart, instance.title)
-            item.delete()
+            item.product = None
+            item.sponsored_ad = None
+            item.sponsored_unit_price = None
+            item.is_expired_line = True
+            item.expired_message = 'انتهت صلاحية الإعلان.'
+            item.standalone_line_title = (instance.title or item.standalone_line_title or 'عرض ممول')[:200]
+            item.save(update_fields=[
+                'product',
+                'sponsored_ad',
+                'sponsored_unit_price',
+                'is_expired_line',
+                'expired_message',
+                'standalone_line_title',
+            ])
         else:
             _append_cart_note_sponsored_ended(item.cart, item.product.name, item.product.price)
             item.sponsored_unit_price = None

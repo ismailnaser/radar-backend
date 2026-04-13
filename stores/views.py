@@ -66,9 +66,19 @@ class NearbyStoreListView(generics.ListAPIView):
             lng = float(lng)
             pass
 
-        category_id = self.request.query_params.get('category')
-        if category_id:
-            queryset = queryset.filter(category_id=category_id)
+        category_raw = self.request.query_params.get('category')
+        if category_raw:
+            raw = str(category_raw).strip()
+            parts = [p.strip() for p in raw.split(',') if p.strip()]
+            if len(parts) > 1:
+                try:
+                    ids = [int(p) for p in parts]
+                except ValueError:
+                    ids = []
+                if ids:
+                    queryset = queryset.filter(Q(category_id__in=ids) | Q(categories__id__in=ids)).distinct()
+            else:
+                queryset = queryset.filter(Q(category_id=raw) | Q(categories__id=raw)).distinct()
 
         return queryset
 
@@ -106,6 +116,8 @@ class StoreDetailView(generics.RetrieveAPIView):
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         if not self._can_access_public_store(request, instance):
+            if getattr(instance, 'is_suspended_by_admin', False):
+                raise NotFound('تم تعليق المتجر إدارياً.')
             raise NotFound('المتجر غير متاح حالياً — ربما انتهى الاشتراك أو أُوقِف من الإدارة.')
         from orders.models import VisitorStat
         from django.utils import timezone

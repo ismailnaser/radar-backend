@@ -132,6 +132,13 @@ class StoreProfile(models.Model):
     description = models.TextField("وصف المتجر", blank=True)
     logo = models.ImageField("لوغو المتجر", upload_to='store_logos/', null=True, blank=True)
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, related_name='stores')
+    categories = models.ManyToManyField(
+        Category,
+        blank=True,
+        related_name='stores_multi',
+        verbose_name='أقسام المتجر (متعدد)',
+        help_text='يمكن اختيار أكثر من قسم للمتجر لظهوره ضمن أكثر من فلتر.',
+    )
     latitude = models.FloatField("خط العرض", null=True, blank=True)
     longitude = models.FloatField("خط الطول", null=True, blank=True)
     location_address = models.TextField(
