@@ -13,6 +13,7 @@ from .serializers import (
     FavoriteSerializer,
     StoreFavoriteSerializer,
     SubscriptionRenewalRequestSerializer,
+    AdminAppPaymentSerializer,
 )
 from stores.models import CommunityServicePoint, StoreProfile
 from stores.subscription_visibility import (
@@ -24,6 +25,7 @@ from django.utils import timezone
 from datetime import timedelta
 from decimal import Decimal
 from django.db.models import Q, Sum
+from rest_framework.exceptions import PermissionDenied
 
 from .ad_lifecycle import purge_expired_sponsored_ads
 
@@ -537,3 +539,72 @@ class AdminFinanceTransfersView(APIView):
                 "results": results,
             }
         )
+
+
+class AdminFinanceTransferDetailView(APIView):
+    """حذف تحويلة أرباح/تحويلات محددة — للمدير الأساسي فقط."""
+
+    permission_classes = [PrimaryAdminRequiredPermission]
+
+    def delete(self, request, transfer_id: int):
+        from .models import FinanceTransfer
+
+        t = FinanceTransfer.objects.filter(pk=transfer_id).first()
+        if not t:
+            return Response({"detail": "غير موجود."}, status=status.HTTP_404_NOT_FOUND)
+        t.delete()
+        return Response({"ok": True})
+
+
+class AdminAppPaymentsView(APIView):
+    """مدفوعات الإدارة للتطبيق (مدفوع/قيد الدفع) — للمدير الأساسي فقط."""
+
+    permission_classes = [PrimaryAdminRequiredPermission]
+
+    def get(self, request):
+        from .models import AdminAppPayment
+        qs = AdminAppPayment.objects.select_related("created_by").all()
+        status_q = (request.query_params.get("status") or "").strip()
+        if status_q in ("paid", "planned"):
+            qs = qs.filter(status=status_q)
+        total_paid = qs.filter(status=AdminAppPayment.STATUS_PAID).aggregate(total=Sum("amount_ils")).get("total") or Decimal("0.00")
+        total_all = qs.aggregate(total=Sum("amount_ils")).get("total") or Decimal("0.00")
+        ser = AdminAppPaymentSerializer(qs[:500], many=True, context={"request": request})
+        return Response(
+            {
+                "meta": {
+                    "total_count": qs.count(),
+                    "total_paid_ils": str(total_paid),
+                    "total_all_ils": str(total_all),
+                },
+                "results": ser.data,
+            }
+        )
+
+    def post(self, request):
+        ser = AdminAppPaymentSerializer(data=request.data, context={"request": request})
+        ser.is_valid(raise_exception=True)
+        obj = ser.save(created_by=request.user)
+        return Response(AdminAppPaymentSerializer(obj, context={"request": request}).data, status=status.HTTP_201_CREATED)
+
+
+class AdminAppPaymentDetailView(APIView):
+    permission_classes = [PrimaryAdminRequiredPermission]
+
+    def patch(self, request, payment_id: int):
+        from .models import AdminAppPayment
+        obj = AdminAppPayment.objects.filter(pk=payment_id).first()
+        if not obj:
+            return Response({"detail": "غير موجود."}, status=status.HTTP_404_NOT_FOUND)
+        ser = AdminAppPaymentSerializer(obj, data=request.data, partial=True, context={"request": request})
+        ser.is_valid(raise_exception=True)
+        ser.save()
+        return Response(ser.data)
+
+    def delete(self, request, payment_id: int):
+        from .models import AdminAppPayment
+        obj = AdminAppPayment.objects.filter(pk=payment_id).first()
+        if not obj:
+            return Response({"detail": "غير موجود."}, status=status.HTTP_404_NOT_FOUND)
+        obj.delete()
+        return Response({"ok": True})

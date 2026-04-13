@@ -273,3 +273,36 @@ class FinanceTransfer(models.Model):
 
     def __str__(self):
         return f"{self.get_kind_display()} — {self.amount_ils}₪ — {self.store_id}"
+
+
+class AdminAppPayment(models.Model):
+    """سجل مدفوعات الإدارة للتطبيق (مدفوع/قيد الدفع) لحساب إجمالي ما تم دفعه."""
+
+    STATUS_PAID = "paid"
+    STATUS_PLANNED = "planned"
+    STATUS_CHOICES = [
+        (STATUS_PAID, "مدفوع"),
+        (STATUS_PLANNED, "قيد الدفع"),
+    ]
+
+    title = models.CharField("العنوان", max_length=120, blank=True, default="")
+    amount_ils = models.DecimalField("المبلغ (شيكل)", max_digits=10, decimal_places=2, default=0)
+    status = models.CharField("الحالة", max_length=20, choices=STATUS_CHOICES, default=STATUS_PAID, db_index=True)
+    due_date = models.DateField("تاريخ الاستحقاق", null=True, blank=True, db_index=True)
+    notes = models.TextField("ملاحظات", blank=True, default="")
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="admin_app_payments",
+    )
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        verbose_name = "دفعة للتطبيق"
+        verbose_name_plural = "مدفوعات للتطبيق"
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self):
+        return f"{self.get_status_display()} — {self.amount_ils}₪"

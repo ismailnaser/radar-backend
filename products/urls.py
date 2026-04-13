@@ -19,6 +19,9 @@ from .views import (
     FavoriteViewSet,
     StoreFavoriteViewSet,
     AdminFinanceTransfersView,
+    AdminFinanceTransferDetailView,
+    AdminAppPaymentsView,
+    AdminAppPaymentDetailView,
 )
 
 router = DefaultRouter()
@@ -40,6 +43,9 @@ urlpatterns = [
     path('admin/subscription/renew/<int:pk>/approve/', AdminSubscriptionRenewalRequestApproveView.as_view(), name='admin_subscription_renew_approve'),
     path('admin/subscription/renew/<int:pk>/reject/', AdminSubscriptionRenewalRequestRejectView.as_view(), name='admin_subscription_renew_reject'),
     path('admin/finance/transfers/', AdminFinanceTransfersView.as_view(), name='admin_finance_transfers'),
+    path('admin/finance/transfers/<int:transfer_id>/', AdminFinanceTransferDetailView.as_view(), name='admin_finance_transfer_detail'),
+    path('admin/payments/', AdminAppPaymentsView.as_view(), name='admin_app_payments'),
+    path('admin/payments/<int:payment_id>/', AdminAppPaymentDetailView.as_view(), name='admin_app_payment_detail'),
     path('public/products/', PublicProductListView.as_view(), name='public_product_list'),
     path('public/ads/', PublicAdListView.as_view(), name='public_ad_list'),
     path('user/', include(router.urls)),

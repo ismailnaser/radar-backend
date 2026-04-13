@@ -17,6 +17,7 @@ from .models import (
     Favorite,
     StoreFavorite,
     SubscriptionRenewalRequest,
+    AdminAppPayment,
 )
 from .media_utils import (
     MAX_GALLERY_IMAGES,
@@ -445,3 +446,42 @@ class SubscriptionRenewalRequestSerializer(serializers.ModelSerializer):
         if instance.receipt_image:
             data['receipt_image'] = _absolute_media_url(request, instance.receipt_image.url)
         return data
+
+
+class AdminAppPaymentSerializer(serializers.ModelSerializer):
+    created_by_username = serializers.SerializerMethodField(read_only=True)
+    status_label = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = AdminAppPayment
+        fields = (
+            "id",
+            "title",
+            "amount_ils",
+            "status",
+            "status_label",
+            "due_date",
+            "notes",
+            "created_by",
+            "created_by_username",
+            "created_at",
+        )
+        read_only_fields = ("created_by", "created_by_username", "created_at", "status_label")
+
+    def get_created_by_username(self, obj):
+        if obj.created_by_id and obj.created_by:
+            return obj.created_by.username
+        return None
+
+    def get_status_label(self, obj):
+        try:
+            return obj.get_status_display()
+        except Exception:
+            return obj.status
+
+    def validate_amount_ils(self, value):
+        if value is None:
+            return 0
+        if value < 0:
+            raise serializers.ValidationError("المبلغ لا يمكن أن يكون سالباً.")
+        return value
