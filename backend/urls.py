@@ -17,9 +17,32 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include, re_path
 from django.views.static import serve
+from django.http import FileResponse, HttpResponseNotFound
 
 from django.conf import settings
 from django.conf.urls.static import static
+from pathlib import Path
+
+
+def react_spa(request):
+    """
+    Serve React SPA entrypoint for client-side routes.
+    Keep this as the *last* route so it won't shadow /api, /static, /media.
+    """
+    base = Path(getattr(settings, "BASE_DIR", Path(__file__).resolve().parent.parent))
+    candidates = [
+        base.parent / "frontend" / "dist" / "index.html",
+        base.parent / "frontend" / "build" / "index.html",
+        base / "frontend" / "dist" / "index.html",
+        base / "frontend" / "build" / "index.html",
+    ]
+    for p in candidates:
+        try:
+            if p.exists():
+                return FileResponse(open(p, "rb"), content_type="text/html")
+        except Exception:
+            continue
+    return HttpResponseNotFound("index.html not found")
 
 urlpatterns = [
     path('api/admin/', admin.site.urls),
@@ -41,4 +64,9 @@ if not getattr(settings, 'USE_DO_SPACES', False):
                 {'document_root': str(settings.MEDIA_ROOT)},
             ),
         ]
+
+# SPA catch-all (must be last): serve React index.html on refresh
+urlpatterns += [
+    re_path(r"^(?!api/|static/|media/).*$", react_spa),
+]
 
