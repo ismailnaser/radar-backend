@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.views.static import serve
 from django.http import FileResponse, HttpResponseNotFound
+from django.views.generic import RedirectView
 
 from django.conf import settings
 from django.conf.urls.static import static
@@ -45,6 +46,9 @@ def react_spa(request):
     return HttpResponseNotFound("index.html not found")
 
 urlpatterns = [
+    # Convenience: allow /admin to open Django admin (actual mount is /api/admin/)
+    path("admin/", RedirectView.as_view(url="/api/admin/", permanent=False)),
+    path("django-admin/", RedirectView.as_view(url="/api/admin/", permanent=False)),
     path('api/admin/', admin.site.urls),
     path('api/users/', include('users.urls')),
     path('api/stores/', include('stores.urls')),
