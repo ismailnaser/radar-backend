@@ -12,7 +12,6 @@ env/
 !.env.example
 *.egg-info/
 .eggs/
-dist/
 build/
 
 # Django
