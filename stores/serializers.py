@@ -666,6 +666,12 @@ class CommunityServicePointAdminUpdateSerializer(serializers.ModelSerializer):
         if not cat:
             raise serializers.ValidationError({'category': 'القسم مطلوب.'})
 
+        # merge current values so conditional validation doesn't fail on partial updates
+        if self.instance is not None:
+            for k in ('water_is_potable', 'institution_scope'):
+                if k not in attrs:
+                    attrs[k] = getattr(self.instance, k)
+
         la = attrs.get('latitude', getattr(self.instance, 'latitude', None))
         lo = attrs.get('longitude', getattr(self.instance, 'longitude', None))
         if la is None or lo is None:
