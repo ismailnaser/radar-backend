@@ -22,6 +22,7 @@ from .serializers import (
     CommunityServiceCategorySerializer,
     CommunityServicePointAdminCreateSerializer,
     CommunityServicePointAdminSerializer,
+    CommunityServicePointAdminUpdateSerializer,
     CommunityServicePointMineSerializer,
     CommunityServicePointPublicSerializer,
     CommunityServicePointSubmitSerializer,
@@ -449,6 +450,25 @@ class AdminCommunityPointModerateView(APIView):
             {'error': 'action يجب أن يكون approve أو reject أو hide أو unhide.'},
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+
+class AdminCommunityPointDetailView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [AdminRequiredPermission]
+    parser_classes = [JSONParser, FormParser]
+    queryset = CommunityServicePoint.objects.select_related('category', 'submitted_by', 'reviewed_by')
+
+    def get_serializer_class(self):
+        if self.request.method in ('PATCH', 'PUT'):
+            return CommunityServicePointAdminUpdateSerializer
+        return CommunityServicePointAdminSerializer
+
+    def perform_update(self, serializer):
+        inst = serializer.save(reviewed_by=self.request.user, reviewed_at=timezone.now())
+        # keep status consistent: edited points remain approved unless explicitly rejected elsewhere
+        if inst.status != CommunityServicePoint.STATUS_APPROVED:
+            inst.status = CommunityServicePoint.STATUS_APPROVED
+            inst.rejection_reason = ''
+            inst.save(update_fields=['status', 'rejection_reason', 'updated_at'])
 
 
 class MerchantStoreProfileView(generics.RetrieveUpdateAPIView):

@@ -1,6 +1,7 @@
 from django.urls import path
 from .views import (
     AdminCommunityPointListCreateView,
+    AdminCommunityPointDetailView,
     AdminCommunityPointModerateView,
     CategoryListView,
     CommunityCategoryListView,
@@ -28,6 +29,7 @@ urlpatterns = [
     path('community/points/mine/', CommunityPointMyListView.as_view(), name='community_point_mine'),
     path('community/points/submit/', CommunityPointSubmitView.as_view(), name='community_point_submit'),
     path('admin/community-points/', AdminCommunityPointListCreateView.as_view(), name='admin_community_point_list_create'),
+    path('admin/community-points/<int:pk>/', AdminCommunityPointDetailView.as_view(), name='admin_community_point_detail'),
     path('admin/community-points/<int:pk>/moderate/', AdminCommunityPointModerateView.as_view(), name='admin_community_point_moderate'),
     path('stores/', NearbyStoreListView.as_view(), name='store_list'),
     path('stores/<int:pk>/', StoreDetailView.as_view(), name='store_detail'),

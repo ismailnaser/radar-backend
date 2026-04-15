@@ -643,3 +643,37 @@ class CommunityServicePointAdminCreateSerializer(serializers.ModelSerializer):
             status=CommunityServicePoint.STATUS_APPROVED,
             **validated_data,
         )
+
+
+class CommunityServicePointAdminUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CommunityServicePoint
+        fields = (
+            'category',
+            'title',
+            'detail_description',
+            'latitude',
+            'longitude',
+            'address_text',
+            'water_is_potable',
+            'institution_scope',
+            'is_hidden_by_admin',
+        )
+
+    def validate(self, attrs):
+        # allow partial updates; normalize based on (possibly updated) category
+        cat = attrs.get('category') or getattr(self.instance, 'category', None)
+        if not cat:
+            raise serializers.ValidationError({'category': 'القسم مطلوب.'})
+
+        la = attrs.get('latitude', getattr(self.instance, 'latitude', None))
+        lo = attrs.get('longitude', getattr(self.instance, 'longitude', None))
+        if la is None or lo is None:
+            raise serializers.ValidationError('الإحداثيات مطلوبة.')
+        try:
+            la, lo = float(la), float(lo)
+        except (TypeError, ValueError):
+            raise serializers.ValidationError({'latitude': 'إحداثيات غير صالحة.'})
+        attrs['latitude'] = la
+        attrs['longitude'] = lo
+        return _validate_community_point_category_fields(cat, attrs)
