@@ -2,6 +2,8 @@ import uuid
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from stores.models import Category, StoreProfile
 from stores.subscription_visibility import create_trial_subscription_for_store
@@ -38,11 +40,13 @@ class AdminAccountListSerializer(serializers.ModelSerializer):
 class AdminAccountCreateSerializer(serializers.Serializer):
     username = serializers.CharField(max_length=150)
     phone_number = serializers.CharField(max_length=20)
-    password = serializers.CharField(write_only=True, min_length=6)
+    password = serializers.CharField(write_only=True)
     tier = serializers.ChoiceField(choices=('secondary', 'primary'))
 
     def validate_username(self, value):
         v = (value or '').strip()
+        if len(v) < 6:
+            raise serializers.ValidationError('اسم المستخدم يجب أن يكون 6 أحرف على الأقل.')
         if User.objects.filter(username__iexact=v).exists():
             raise serializers.ValidationError('اسم المستخدم مستخدم مسبقاً.')
         return v
@@ -52,6 +56,14 @@ class AdminAccountCreateSerializer(serializers.Serializer):
         if User.objects.filter(phone_number=v).exists():
             raise serializers.ValidationError('رقم الهاتف مسجّل مسبقاً.')
         return v
+
+    def validate_password(self, value):
+        pw = value or ''
+        try:
+            validate_password(pw)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(list(e.messages))
+        return pw
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -83,6 +95,24 @@ class RegisterSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'phone_number': {'required': False, 'allow_blank': True},
         }
+
+    def validate_username(self, value):
+        v = (value or '').strip()
+        if not v:
+            raise serializers.ValidationError('اسم المستخدم مطلوب.')
+        if len(v) < 6:
+            raise serializers.ValidationError('اسم المستخدم يجب أن يكون 6 أحرف على الأقل.')
+        if User.objects.filter(username__iexact=v).exists():
+            raise serializers.ValidationError('اسم المستخدم مستخدم مسبقاً.')
+        return v
+
+    def validate_password(self, value):
+        pw = value or ''
+        try:
+            validate_password(pw)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(list(e.messages))
+        return pw
 
     def validate(self, attrs):
         if attrs.get('user_type') == 'admin':
@@ -218,7 +248,7 @@ class ChangeUsernameSerializer(serializers.Serializer):
 
 class ChangePasswordSerializer(serializers.Serializer):
     current_password = serializers.CharField(write_only=True, min_length=1)
-    new_password = serializers.CharField(write_only=True, min_length=6)
+    new_password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
         request = self.context.get('request')
@@ -229,4 +259,8 @@ class ChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({'current_password': 'كلمة المرور الحالية غير صحيحة.'})
         if attrs.get('current_password') == attrs.get('new_password'):
             raise serializers.ValidationError({'new_password': 'كلمة المرور الجديدة يجب أن تختلف عن الحالية.'})
+        try:
+            validate_password(attrs.get('new_password') or '', user=user)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError({'new_password': list(e.messages)})
         return attrs
