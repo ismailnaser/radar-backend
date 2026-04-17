@@ -139,27 +139,35 @@ class GoogleAccessTokenLoginView(SocialLoginView):
             )
 
 
-class PasswordResetView(APIView):
-    """
-    Wrap dj-rest-auth PasswordResetView to surface SMTP/template errors in logs.
-    """
+if DjPasswordResetView is not None:
+    class PasswordResetView(DjPasswordResetView):
+        """
+        dj-rest-auth PasswordResetView with logging for production debugging.
 
-    permission_classes = [AllowAny]
+        Important: we subclass the original DRF view to avoid mixing DRF Request
+        with Django HttpRequest / as_view() calls.
+        """
 
-    def post(self, request, *args, **kwargs):
-        if DjPasswordResetView is None:
+        permission_classes = [AllowAny]
+
+        def post(self, request, *args, **kwargs):
+            try:
+                return super().post(request, *args, **kwargs)
+            except Exception:
+                # Print full traceback to logs (DigitalOcean captures stdout/stderr)
+                print(traceback.format_exc())
+                return Response(
+                    {"error": "تعذر إرسال بريد إعادة تعيين كلمة المرور. حاول لاحقاً."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+else:
+    class PasswordResetView(APIView):
+        permission_classes = [AllowAny]
+
+        def post(self, request, *args, **kwargs):
             return Response(
                 {"error": "Password reset غير متاح حالياً."},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        try:
-            return DjPasswordResetView.as_view()(request, *args, **kwargs)
-        except Exception:
-            # Print full traceback to logs (DigitalOcean captures stdout/stderr)
-            print(traceback.format_exc())
-            return Response(
-                {"error": "تعذر إرسال بريد إعادة تعيين كلمة المرور. حاول لاحقاً."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
