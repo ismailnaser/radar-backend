@@ -327,3 +327,18 @@ if DEBUG:
 ULTRAMSG_INSTANCE_ID = os.environ.get('ULTRAMSG_INSTANCE_ID', '')
 ULTRAMSG_TOKEN = os.environ.get('ULTRAMSG_TOKEN', '')
 WHATSAPP_DEBUG_MODE = _env_bool('WHATSAPP_DEBUG_MODE', True)
+
+# Email (SMTP) — DigitalOcean env vars
+# Required env vars (recommended):
+#   EMAIL_HOST, EMAIL_HOST_USER, EMAIL_HOST_PASSWORD
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = (os.environ.get('EMAIL_HOST') or '').strip()
+EMAIL_HOST_USER = (os.environ.get('EMAIL_HOST_USER') or '').strip()
+EMAIL_HOST_PASSWORD = (os.environ.get('EMAIL_HOST_PASSWORD') or '').strip()
+EMAIL_USE_TLS = True
+EMAIL_PORT = 587
+
+# Optional, but nice to set
+DEFAULT_FROM_EMAIL = (os.environ.get('DEFAULT_FROM_EMAIL') or EMAIL_HOST_USER or 'no-reply@radar.local').strip()
+SERVER_EMAIL = (os.environ.get('SERVER_EMAIL') or DEFAULT_FROM_EMAIL).strip()
+EMAIL_TIMEOUT = int((os.environ.get('EMAIL_TIMEOUT') or '20').strip() or 20)
