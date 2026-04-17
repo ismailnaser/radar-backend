@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from django.contrib.auth import get_user_model
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.db.models import Count, Q
+from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import (
     RegisterSerializer,
     MyTokenObtainPairSerializer,
@@ -12,6 +13,7 @@ from .serializers import (
     AdminAccountCreateSerializer,
     ChangeUsernameSerializer,
     ChangePasswordSerializer,
+    UserSerializer,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .utils import generate_otp, send_whatsapp_message
@@ -25,6 +27,15 @@ from dj_rest_auth.registration.views import SocialLoginView
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.models import SocialApp
 from django.core.exceptions import ObjectDoesNotExist
+import re
+import secrets
+
+try:
+    from google.oauth2 import id_token as google_id_token
+    from google.auth.transport import requests as google_requests
+except Exception:  # pragma: no cover
+    google_id_token = None
+    google_requests = None
 
 import json
 import os
@@ -120,6 +131,99 @@ class GoogleAccessTokenLoginView(SocialLoginView):
                 },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
+
+
+def _slug_username_base(raw: str) -> str:
+    s = (raw or "").strip().lower()
+    s = re.sub(r"[^a-z0-9_]+", "_", s)
+    s = re.sub(r"_+", "_", s).strip("_")
+    return s
+
+
+def _unique_username_from_email(email: str) -> str:
+    base = _slug_username_base((email or "").split("@")[0]) or "user"
+    if len(base) < 6:
+        base = (base + "000000")[:6]
+    # Ensure uniqueness (case-insensitive)
+    cand = base[:150]
+    if not User.objects.filter(username__iexact=cand).exists():
+        return cand
+    for _i in range(60):
+        suffix = secrets.token_hex(2)  # 4 chars
+        cand = f"{base[:145]}{suffix}"[:150]
+        if not User.objects.filter(username__iexact=cand).exists():
+            return cand
+    return f"{base[:140]}{secrets.token_hex(5)}"[:150]
+
+
+class GoogleIdTokenLoginView(APIView):
+    """
+    GSI Popup flow: frontend sends Google ID token (credential) as id_token.
+
+    POST JSON:
+      { "id_token": "<google id token>" }
+
+    Response (JWT):
+      { "access": "...", "refresh": "...", "user": {...} }
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        if google_id_token is None or google_requests is None:
+            return Response(
+                {"error": "google-auth غير مثبت على الخادم."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        idt = (request.data.get("id_token") or request.data.get("credential") or "").strip()
+        if not idt:
+            return Response({"error": "id_token مطلوب."}, status=status.HTTP_400_BAD_REQUEST)
+
+        aud = (os.environ.get("GOOGLE_CLIENT_ID") or "").strip()
+        if not aud:
+            return Response(
+                {"error": "GOOGLE_CLIENT_ID غير مضبوط على الخادم."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        try:
+            info = google_id_token.verify_oauth2_token(
+                idt,
+                google_requests.Request(),
+                audience=aud,
+            )
+        except Exception:
+            return Response({"error": "تعذر التحقق من توكن Google."}, status=status.HTTP_400_BAD_REQUEST)
+
+        email = (info.get("email") or "").strip().lower()
+        if not email:
+            return Response({"error": "حساب Google لم يرسل email."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = User.objects.filter(email__iexact=email).first()
+        if user is None:
+            username = _unique_username_from_email(email)
+            user = User.objects.create_user(
+                username=username,
+                phone_number=None,
+                password=None,
+                user_type="shopper",
+                is_whatsapp_verified=True,
+                email=email,
+            )
+        else:
+            # Keep profile sane for older accounts created without email
+            if not getattr(user, "email", ""):
+                user.email = email
+                user.save(update_fields=["email"])
+
+        refresh = RefreshToken.for_user(user)
+        data = {
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "user": UserSerializer(user).data,
+        }
+        return Response(data)
 
 class VerifyWhatsAppView(APIView):
     permission_classes = [IsAuthenticated]
