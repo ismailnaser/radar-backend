@@ -29,6 +29,7 @@ from allauth.socialaccount.models import SocialApp
 from django.core.exceptions import ObjectDoesNotExist
 import re
 import secrets
+import traceback
 
 try:
     from google.oauth2 import id_token as google_id_token
@@ -46,6 +47,11 @@ except Exception:  # pragma: no cover
     WebPushException = Exception
 
 User = get_user_model()
+
+try:
+    from dj_rest_auth.views import PasswordResetView as DjPasswordResetView
+except Exception:  # pragma: no cover
+    DjPasswordResetView = None
 
 
 def user_is_primary_admin(user):
@@ -130,6 +136,30 @@ class GoogleAccessTokenLoginView(SocialLoginView):
                     )
                 },
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+
+class PasswordResetView(APIView):
+    """
+    Wrap dj-rest-auth PasswordResetView to surface SMTP/template errors in logs.
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        if DjPasswordResetView is None:
+            return Response(
+                {"error": "Password reset غير متاح حالياً."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        try:
+            return DjPasswordResetView.as_view()(request, *args, **kwargs)
+        except Exception:
+            # Print full traceback to logs (DigitalOcean captures stdout/stderr)
+            print(traceback.format_exc())
+            return Response(
+                {"error": "تعذر إرسال بريد إعادة تعيين كلمة المرور. حاول لاحقاً."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 

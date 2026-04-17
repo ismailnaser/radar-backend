@@ -2,6 +2,7 @@ from django.apps import AppConfig
 from django.utils.translation import gettext_lazy as _
 from django.conf import settings
 import os
+import logging
 
 
 class UsersConfig(AppConfig):
@@ -16,8 +17,10 @@ class UsersConfig(AppConfig):
 
         # Ensure django.contrib.sites has a sane domain in production.
         # This prevents allauth from failing when Site row is missing/mismatched.
+        logger = logging.getLogger(__name__)
         try:
             from django.contrib.sites.models import Site
+            from django.db.utils import OperationalError, ProgrammingError
 
             site_id = getattr(settings, "SITE_ID", 1)
             domain = (os.environ.get("SITE_DOMAIN") or "").strip()
@@ -34,6 +37,8 @@ class UsersConfig(AppConfig):
                 id=site_id,
                 defaults={"domain": domain, "name": domain},
             )
+        except (OperationalError, ProgrammingError):
+            # Most likely migrations haven't run yet (django_site table missing).
+            logger.exception("Sites table not ready (did you run migrate for django.contrib.sites?)")
         except Exception:
-            # DB may be unavailable during startup/migrations; ignore.
-            pass
+            logger.exception("Failed to ensure Site domain during startup")

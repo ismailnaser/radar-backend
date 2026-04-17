@@ -23,6 +23,7 @@ from django.views.generic import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 from pathlib import Path
+from users.views import PasswordResetView
 
 
 def react_spa(request):
@@ -51,6 +52,7 @@ urlpatterns = [
     path("django-admin/", RedirectView.as_view(url="/api/admin/", permanent=False)),
     path('api/admin/', admin.site.urls),
     path('api/users/', include('users.urls')),
+    path('api/auth/password/reset/', PasswordResetView.as_view()),
     path('api/auth/', include('dj_rest_auth.urls')),
     path('api/stores/', include('stores.urls')),
     path('api/products/', include('products.urls')),
