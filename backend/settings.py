@@ -320,6 +320,10 @@ if not DEBUG and _env_bool('DJANGO_USE_TLS_PROXY', False):
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
 
+# DigitalOcean عادةً خلف reverse proxy HTTPS — نثبت هذا لتفادي بناء روابط http داخل رسائل البريد/الحساب.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+ACCOUNT_DEFAULT_HTTP_PROTOCOL = 'https'
+
 _csrf_origins = os.environ.get('CSRF_TRUSTED_ORIGINS', '').strip()
 CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_origins.split(',') if o.strip()] if _csrf_origins else []
 # إنتاج DO (عند عدم تعريف CSRF_TRUSTED_ORIGINS في البيئة)
@@ -350,6 +354,6 @@ EMAIL_USE_TLS = True
 EMAIL_PORT = 587
 
 # Optional, but nice to set
-DEFAULT_FROM_EMAIL = (os.environ.get('DEFAULT_FROM_EMAIL') or EMAIL_HOST_USER or 'no-reply@radar.local').strip()
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 SERVER_EMAIL = (os.environ.get('SERVER_EMAIL') or DEFAULT_FROM_EMAIL).strip()
 EMAIL_TIMEOUT = int((os.environ.get('EMAIL_TIMEOUT') or '20').strip() or 20)
