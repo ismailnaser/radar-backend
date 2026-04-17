@@ -72,8 +72,16 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
     'rest_framework',
+    'rest_framework.authtoken',
     'corsheaders',
+    'dj_rest_auth',
+    'dj_rest_auth.registration',
+    'allauth',
+    'allauth.account',
+    'allauth.socialaccount',
+    'allauth.socialaccount.providers.google',
     'users.apps.UsersConfig',
     'stores.apps.StoresConfig',
     'products.apps.ProductsConfig',
@@ -101,6 +109,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'backend.urls'
@@ -236,11 +245,34 @@ if _use_do_spaces:
 
 AUTH_USER_MODEL = 'users.CustomUser'
 
+SITE_ID = 1
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     )
 }
+
+# dj-rest-auth: JWT integration
+REST_USE_JWT = True
+
+# allauth / Google OAuth (SPA will send access_token to backend)
+_google_client_id = (os.environ.get("GOOGLE_CLIENT_ID") or "").strip()
+_google_client_secret = (os.environ.get("GOOGLE_CLIENT_SECRET") or "").strip()
+if _google_client_id and _google_client_secret:
+    SOCIALACCOUNT_PROVIDERS = {
+        "google": {
+            "APP": {
+                "client_id": _google_client_id,
+                "secret": _google_client_secret,
+                "key": "",
+            }
+        }
+    }
+
+# keep account flows simple for API usage
+ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_EMAIL_REQUIRED = False
 
 from datetime import timedelta
 

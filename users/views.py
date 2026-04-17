@@ -21,6 +21,10 @@ from stores.models import StoreProfile
 from products.views import AdminRequiredPermission
 from .models import AppOpenStat
 from .models import SiteAnnouncement, AdminNotificationEvent, AdminWebPushSubscription
+from dj_rest_auth.registration.views import SocialLoginView
+from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
+from allauth.socialaccount.models import SocialApp
+from django.core.exceptions import ObjectDoesNotExist
 
 import json
 import os
@@ -84,6 +88,38 @@ class RegisterView(generics.CreateAPIView):
 
             data['merchant_subscription_notice'] = MERCHANT_SUBSCRIPTION_NOTICE_AR
         return Response(data, status=status.HTTP_201_CREATED, headers=headers)
+
+
+class GoogleAccessTokenLoginView(SocialLoginView):
+    """
+    SPA flow: frontend obtains Google OAuth2 access_token then POSTs it here.
+
+    Request JSON:
+      { "access_token": "<google access token>" }
+
+    Response:
+      { "access": "<jwt>", "refresh": "<jwt>", "user": {...} }
+    """
+
+    adapter_class = GoogleOAuth2Adapter
+
+    def post(self, request, *args, **kwargs):
+        """
+        If Google app credentials are not configured (env or SocialApp),
+        return a clear error instead of a 500.
+        """
+        try:
+            return super().post(request, *args, **kwargs)
+        except (ObjectDoesNotExist, SocialApp.DoesNotExist):
+            return Response(
+                {
+                    "error": (
+                        "Google OAuth غير مُعدّ. اضبط GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET "
+                        "في إعدادات الخادم، أو أضف SocialApp (Google) من Django Admin واربطه بـ Site."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
 class VerifyWhatsAppView(APIView):
     permission_classes = [IsAuthenticated]
