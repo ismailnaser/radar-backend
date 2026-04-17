@@ -131,6 +131,8 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
 
 # قاعدة البيانات: DJANGO_USE_SQLITE=1 يفرض SQLite محلياً حتى لو DATABASE_URL موجود في النظام
 _db_url = (os.environ.get('DATABASE_URL') or '').strip()
