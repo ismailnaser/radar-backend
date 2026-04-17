@@ -256,6 +256,15 @@ REST_FRAMEWORK = {
 # dj-rest-auth: JWT integration
 REST_USE_JWT = True
 
+# dj-rest-auth: Password reset email link should open the SPA.
+# Using a full URL avoids depending on request host / Sites domain mismatches.
+DJ_REST_AUTH = {
+    "PASSWORD_RESET_CONFIRM_URL": os.environ.get(
+        "PASSWORD_RESET_CONFIRM_URL",
+        "https://radar-rbvob.ondigitalocean.app/reset-password/confirm/{uid}/{token}/",
+    ).strip(),
+}
+
 # allauth / Google OAuth (SPA will send access_token to backend)
 _google_client_id = (os.environ.get("GOOGLE_CLIENT_ID") or "").strip()
 _google_client_secret = (os.environ.get("GOOGLE_CLIENT_SECRET") or "").strip()

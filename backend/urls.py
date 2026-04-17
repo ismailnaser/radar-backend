@@ -51,6 +51,7 @@ urlpatterns = [
     path("django-admin/", RedirectView.as_view(url="/api/admin/", permanent=False)),
     path('api/admin/', admin.site.urls),
     path('api/users/', include('users.urls')),
+    path('api/auth/', include('dj_rest_auth.urls')),
     path('api/stores/', include('stores.urls')),
     path('api/products/', include('products.urls')),
     path('api/orders/', include('orders.urls')),
