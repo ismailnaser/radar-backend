@@ -18,12 +18,27 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 from django.views.static import serve
 from django.http import FileResponse, HttpResponseNotFound
-from django.views.generic import RedirectView
+from django.views.generic import RedirectView, TemplateView
 
 from django.conf import settings
 from django.conf.urls.static import static
 from pathlib import Path
 from users.views import PasswordResetView
+
+
+class PasswordResetConfirmNamedRouteView(TemplateView):
+    """
+    Named route for reverse('password_reset_confirm', ...).
+    Django / allauth build the reset link against this name; the template bridges to the React route.
+    """
+
+    template_name = "registration/password_reset_confirm_bridge.html"
+
+    def get_context_data(self, **kwargs):
+        ctx = super().get_context_data(**kwargs)
+        ctx["uidb64"] = self.kwargs.get("uidb64", "")
+        ctx["token"] = self.kwargs.get("token", "")
+        return ctx
 
 
 def react_spa(request):
@@ -50,6 +65,11 @@ urlpatterns = [
     # Convenience: allow /admin to open Django admin (actual mount is /api/admin/)
     path("admin/", RedirectView.as_view(url="/api/admin/", permanent=False)),
     path("django-admin/", RedirectView.as_view(url="/api/admin/", permanent=False)),
+    path(
+        "password-reset/confirm/<uidb64>/<token>/",
+        PasswordResetConfirmNamedRouteView.as_view(),
+        name="password_reset_confirm",
+    ),
     path('api/admin/', admin.site.urls),
     path('api/users/', include('users.urls')),
     path('api/auth/password/reset/', PasswordResetView.as_view()),
