@@ -41,6 +41,9 @@ except Exception:  # pragma: no cover
 
 import json
 import os
+import time
+
+from django.core.cache import cache
 try:
     from pywebpush import webpush, WebPushException
 except Exception:  # pragma: no cover
@@ -61,6 +64,59 @@ def _django_http_request_for_serializer(request):
     if hasattr(inner, "_request"):
         inner = inner._request
     return inner
+
+
+# ——— حد محاولات إنشاء الحساب (عنوان IP) ———
+_REGISTER_ATTEMPT_MAX = 5
+_REGISTER_LOCK_SECONDS = 60
+
+
+def _register_client_ip(request):
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR") or "unknown"
+
+
+def _register_cache_keys(ip):
+    return f"register:block_until:{ip}", f"register:fail_count:{ip}"
+
+
+def _register_rate_limit_blocked_response(request):
+    ip = _register_client_ip(request)
+    block_key, _fail_key = _register_cache_keys(ip)
+    until = cache.get(block_key)
+    if until is None:
+        return None
+    until = float(until)
+    if time.time() >= until:
+        cache.delete(block_key)
+        return None
+    retry_after = int(max(1, until - time.time()))
+    return Response(
+        {
+            "error": "تجاوزت عدد محاولات إنشاء الحساب (5 محاولات). انتظر دقيقة ثم حاول مرة أخرى.",
+            "retry_after": retry_after,
+        },
+        status=status.HTTP_429_TOO_MANY_REQUESTS,
+    )
+
+
+def _register_rate_limit_note_failure(request):
+    ip = _register_client_ip(request)
+    block_key, fail_key = _register_cache_keys(ip)
+    n = int(cache.get(fail_key) or 0) + 1
+    cache.set(fail_key, n, timeout=_REGISTER_LOCK_SECONDS * 5)
+    if n >= _REGISTER_ATTEMPT_MAX:
+        cache.set(block_key, time.time() + _REGISTER_LOCK_SECONDS, timeout=_REGISTER_LOCK_SECONDS + 30)
+        cache.delete(fail_key)
+
+
+def _register_rate_limit_clear(request):
+    ip = _register_client_ip(request)
+    block_key, fail_key = _register_cache_keys(ip)
+    cache.delete(block_key)
+    cache.delete(fail_key)
 
 
 def user_is_primary_admin(user):
@@ -102,11 +158,25 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
     def create(self, request, *args, **kwargs):
+        blocked = _register_rate_limit_blocked_response(request)
+        if blocked is not None:
+            return blocked
+
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        if not serializer.is_valid():
+            _register_rate_limit_note_failure(request)
+            serializer.is_valid(raise_exception=True)
+
+        try:
+            user = serializer.save()
+        except Exception:
+            _register_rate_limit_note_failure(request)
+            raise
+
         user.is_whatsapp_verified = True
         user.save()
+        _register_rate_limit_clear(request)
+
         headers = self.get_success_headers(serializer.data)
         data = dict(serializer.data)
         if user.user_type == 'merchant':

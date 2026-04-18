@@ -247,6 +247,9 @@ if _use_do_spaces:
 
 AUTH_USER_MODEL = 'users.CustomUser'
 
+# صلاحية رابط إعادة تعيين كلمة المرور (بالثواني). 600 = 10 دقائق.
+PASSWORD_RESET_TIMEOUT = int(os.environ.get('PASSWORD_RESET_TIMEOUT', '600').strip() or 600)
+
 SITE_ID = 1
 
 REST_FRAMEWORK = {
