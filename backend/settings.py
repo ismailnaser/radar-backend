@@ -263,7 +263,7 @@ REST_USE_JWT = True
 DJ_REST_AUTH = {
     "PASSWORD_RESET_CONFIRM_URL": os.environ.get(
         "PASSWORD_RESET_CONFIRM_URL",
-        "https://radar-rbvob.ondigitalocean.app/reset-password/confirm/{uid}/{token}/",
+        "https://radar-rbvob.ondigitalocean.app/password-reset/confirm/{uid}/{token}",
     ).strip(),
 }
 
