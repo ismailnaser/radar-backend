@@ -16,11 +16,13 @@ class UserSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'username',
+            'email',
             'phone_number',
             'user_type',
             'is_whatsapp_verified',
             'is_primary_admin',
             'is_active',
+            'merchant_profile_complete',
         )
 
 
@@ -68,6 +70,7 @@ class AdminAccountCreateSerializer(serializers.Serializer):
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    merchant_profile_complete = serializers.BooleanField(read_only=True)
     store_name = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=200)
     location_address = serializers.CharField(write_only=True, required=False, allow_blank=True, max_length=2000)
     store_latitude = serializers.FloatField(required=False, allow_null=True, write_only=True)
@@ -86,6 +89,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             'phone_number',
             'password',
             'user_type',
+            'merchant_profile_complete',
             'store_name',
             'location_address',
             'store_latitude',
@@ -118,14 +122,6 @@ class RegisterSerializer(serializers.ModelSerializer):
         if attrs.get('user_type') == 'admin':
             raise serializers.ValidationError({'user_type': 'لا يمكن إنشاء حساب مدير عبر التسجيل العام'})
         if attrs.get('user_type') == 'merchant':
-            if not (attrs.get('store_name') or '').strip():
-                raise serializers.ValidationError({'store_name': 'اسم المتجر مطلوب للتاجر'})
-            if attrs.get('category') is None:
-                raise serializers.ValidationError({'category': 'اختر نوع المتجر (القسم)'})
-            if not (attrs.get('location_address') or '').strip():
-                raise serializers.ValidationError({
-                    'location_address': 'أدخل عنوان المتجر أو وصف الموقع نصاً (للعرض للمتسوّقين، منفصل عن الخريطة).',
-                })
             lat = attrs.get('store_latitude')
             lng = attrs.get('store_longitude')
             if lat is not None or lng is not None:
@@ -165,9 +161,10 @@ class RegisterSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
         )
         if user.user_type == 'merchant':
+            provisional_name = store_name or f'متجر {user.username}'
             store = StoreProfile.objects.create(
                 user=user,
-                store_name=store_name,
+                store_name=provisional_name,
                 category=category,
                 description='',
                 location_address=location_address,
@@ -175,6 +172,11 @@ class RegisterSerializer(serializers.ModelSerializer):
                 longitude=store_lng,
             )
             create_trial_subscription_for_store(store)
+            user.merchant_profile_complete = False
+            user.save(update_fields=['merchant_profile_complete'])
+        else:
+            user.merchant_profile_complete = True
+            user.save(update_fields=['merchant_profile_complete'])
         return user
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
@@ -264,3 +266,19 @@ class ChangePasswordSerializer(serializers.Serializer):
         except DjangoValidationError as e:
             raise serializers.ValidationError({'new_password': list(e.messages)})
         return attrs
+
+
+class ChangeEmailSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        v = (value or '').strip().lower()
+        if not v:
+            raise serializers.ValidationError('البريد الإلكتروني مطلوب.')
+        user = self.context.get('request').user if self.context.get('request') else None
+        qs = User.objects.filter(email__iexact=v)
+        if user and getattr(user, 'id', None):
+            qs = qs.exclude(id=user.id)
+        if qs.exists():
+            raise serializers.ValidationError('هذا البريد الإلكتروني مستخدم مسبقاً.')
+        return v

@@ -23,6 +23,7 @@ from .views import (
     AdminPushUnsubscribeView,
     MeChangeUsernameView,
     MeChangePasswordView,
+    MeChangeEmailView,
 )
 
 urlpatterns = [
@@ -34,6 +35,7 @@ urlpatterns = [
     path('me/notices/', ShopperNoticesView.as_view(), name='shopper_notices'),
     path('me/username/', MeChangeUsernameView.as_view(), name='me_change_username'),
     path('me/password/', MeChangePasswordView.as_view(), name='me_change_password'),
+    path('me/email/', MeChangeEmailView.as_view(), name='me_change_email'),
     path('verify-whatsapp/', VerifyWhatsAppView.as_view(), name='verify_whatsapp'),
     path('resend-otp/', ResendOTPView.as_view(), name='resend_otp'),
     path('admin/accounts/', PrimaryAdminAccountListCreateView.as_view(), name='primary_admin_accounts'),

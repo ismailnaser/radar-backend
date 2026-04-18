@@ -39,6 +39,11 @@ class CustomUser(AbstractUser):
         help_text="المدير الأساسي فقط يدير حسابات المدراء الآخرين من لوحة الإدارة. المدير الفرعي يراجع الإعلانات والاشتراكات فقط.",
     )
     is_whatsapp_verified = models.BooleanField("تم التحقق من الواتساب", default=False)
+    merchant_profile_complete = models.BooleanField(
+        "اكتمال ملف المتجر",
+        default=False,
+        help_text="للتاجر: هل اكتملت بيانات المتجر الأساسية (اسم، عنوان نصي، قسم)؟",
+    )
     otp_code = models.CharField("رمز التحقق", max_length=6, null=True, blank=True)
     otp_expiry = models.DateTimeField("تاريخ انتهاء الرمز", null=True, blank=True)
     shopper_notices = models.JSONField(

@@ -58,6 +58,28 @@ def _safe_build_absolute_uri(request, relative_url):
         return relative_url
 
 
+def _sync_merchant_profile_complete_from_store(store):
+    """يحدّث علم اكتمال ملف التاجر وفق بيانات أساسية للمتجر."""
+    from django.contrib.auth import get_user_model
+
+    User = get_user_model()
+    u = getattr(store, 'user', None)
+    if u is None or getattr(u, 'user_type', None) != 'merchant':
+        return
+    addr = (store.location_address or '').strip()
+    name = (store.store_name or '').strip()
+    has_cat = bool(store.category_id)
+    try:
+        if not has_cat and store.categories.exists():
+            has_cat = True
+    except Exception:
+        pass
+    ok = bool(name and len(addr) >= 5 and has_cat)
+    if u.merchant_profile_complete != ok:
+        u.merchant_profile_complete = ok
+        u.save(update_fields=['merchant_profile_complete'])
+
+
 def store_rating_summary(instance):
     """متوسط بعدد التقييمات؛ يدعم queryset مُعلَّم بـ rating_avg و rating_n."""
     if getattr(instance, 'rating_avg', None) is not None:
@@ -93,6 +115,7 @@ class StoreProfileSerializer(serializers.ModelSerializer):
         required=False,
     )
     categories_names = serializers.SerializerMethodField()
+    merchant_profile_complete = serializers.SerializerMethodField()
     rating_average = serializers.SerializerMethodField()
     rating_count = serializers.SerializerMethodField()
     contact_whatsapp_url = serializers.SerializerMethodField()
@@ -103,6 +126,7 @@ class StoreProfileSerializer(serializers.ModelSerializer):
         fields = (
             'id', 'store_name', 'description', 'logo', 'category', 'category_name',
             'categories', 'categories_names',
+            'merchant_profile_complete',
             'category_image', 'latitude', 'longitude', 'location_address',
             'rating_average', 'rating_count',
             'contact_whatsapp', 'contact_whatsapp_url',
@@ -131,6 +155,10 @@ class StoreProfileSerializer(serializers.ModelSerializer):
             return [c.name for c in obj.categories.all()]
         except Exception:
             return []
+
+    def get_merchant_profile_complete(self, obj):
+        u = getattr(obj, 'user', None)
+        return bool(getattr(u, 'merchant_profile_complete', False))
 
     def get_contact_whatsapp_url(self, obj):
         return _contact_whatsapp_url(getattr(obj, 'contact_whatsapp', '') or '')
@@ -249,6 +277,7 @@ class StoreProfileSerializer(serializers.ModelSerializer):
             if first and (inst.category_id is None or inst.category_id not in inst.categories.values_list('id', flat=True)):
                 inst.category = first
                 inst.save(update_fields=['category'])
+        _sync_merchant_profile_complete_from_store(inst)
         return inst
 
 

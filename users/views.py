@@ -13,6 +13,7 @@ from .serializers import (
     AdminAccountCreateSerializer,
     ChangeUsernameSerializer,
     ChangePasswordSerializer,
+    ChangeEmailSerializer,
     UserSerializer,
 )
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -324,17 +325,40 @@ class GoogleIdTokenLoginView(APIView):
         if not email:
             return Response({"error": "حساب Google لم يرسل email."}, status=status.HTTP_400_BAD_REQUEST)
 
+        register_as_merchant = bool(
+            request.data.get("register_as_merchant") or request.data.get("registerAsMerchant")
+        )
+
         user = User.objects.filter(email__iexact=email).first()
         if user is None:
             username = _unique_username_from_email(email)
+            utype = "merchant" if register_as_merchant else "shopper"
             user = User.objects.create_user(
                 username=username,
                 phone_number=None,
                 password=None,
-                user_type="shopper",
+                user_type=utype,
                 is_whatsapp_verified=True,
                 email=email,
             )
+            if utype == "merchant":
+                user.merchant_profile_complete = False
+                user.save(update_fields=["merchant_profile_complete"])
+                sp = StoreProfile.objects.create(
+                    user=user,
+                    store_name=f"متجر {username}",
+                    category=None,
+                    description="",
+                    location_address="",
+                    latitude=None,
+                    longitude=None,
+                )
+                from stores.subscription_visibility import create_trial_subscription_for_store
+
+                create_trial_subscription_for_store(sp)
+            else:
+                user.merchant_profile_complete = True
+                user.save(update_fields=["merchant_profile_complete"])
         else:
             # Keep profile sane for older accounts created without email
             if not getattr(user, "email", ""):
@@ -578,6 +602,17 @@ class MeChangePasswordView(APIView):
         request.user.set_password(ser.validated_data['new_password'])
         request.user.save(update_fields=['password'])
         return Response({'message': 'تم تغيير كلمة المرور بنجاح.'})
+
+
+class MeChangeEmailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        ser = ChangeEmailSerializer(data=request.data, context={'request': request})
+        ser.is_valid(raise_exception=True)
+        request.user.email = ser.validated_data['email']
+        request.user.save(update_fields=['email'])
+        return Response({'email': request.user.email})
 
 
 class PublicAnnouncementsView(APIView):
