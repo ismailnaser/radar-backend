@@ -18,6 +18,7 @@ from .serializers import (
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .utils import generate_otp, send_whatsapp_message
 from django.utils import timezone
+from django.utils.translation import gettext as _
 from datetime import timedelta
 from stores.models import StoreProfile
 from products.views import AdminRequiredPermission
@@ -49,9 +50,17 @@ except Exception:  # pragma: no cover
 User = get_user_model()
 
 try:
-    from dj_rest_auth.views import PasswordResetView as DjPasswordResetView
+    from dj_rest_auth.app_settings import api_settings as dj_rest_auth_api_settings
 except Exception:  # pragma: no cover
-    DjPasswordResetView = None
+    dj_rest_auth_api_settings = None
+
+
+def _django_http_request_for_serializer(request):
+    """DRF Request → Django HttpRequest (allauth/email code expects the latter)."""
+    inner = getattr(request, "_request", request)
+    if hasattr(inner, "_request"):
+        inner = inner._request
+    return inner
 
 
 def user_is_primary_admin(user):
@@ -139,35 +148,42 @@ class GoogleAccessTokenLoginView(SocialLoginView):
             )
 
 
-if DjPasswordResetView is not None:
-    class PasswordResetView(DjPasswordResetView):
-        """
-        dj-rest-auth PasswordResetView with logging for production debugging.
+class PasswordResetView(generics.GenericAPIView):
+    """
+    Password reset using dj-rest-auth PasswordResetSerializer directly.
+    Passes Django HttpRequest in serializer context (not DRF Request) so
+    allauth / email code does not hit AssertionError.
+    """
 
-        Important: we subclass the original DRF view to avoid mixing DRF Request
-        with Django HttpRequest / as_view() calls.
-        """
+    permission_classes = (AllowAny,)
+    throttle_scope = "dj_rest_auth"
 
-        permission_classes = [AllowAny]
+    def get_serializer_class(self):
+        if dj_rest_auth_api_settings is not None:
+            return dj_rest_auth_api_settings.PASSWORD_RESET_SERIALIZER
+        from dj_rest_auth.serializers import PasswordResetSerializer
 
-        def post(self, request, *args, **kwargs):
-            try:
-                return super().post(request, *args, **kwargs)
-            except Exception:
-                # Print full traceback to logs (DigitalOcean captures stdout/stderr)
-                print(traceback.format_exc())
-                return Response(
-                    {"error": "تعذر إرسال بريد إعادة تعيين كلمة المرور. حاول لاحقاً."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-else:
-    class PasswordResetView(APIView):
-        permission_classes = [AllowAny]
+        return PasswordResetSerializer
 
-        def post(self, request, *args, **kwargs):
+    def get_serializer_context(self):
+        ctx = super().get_serializer_context()
+        ctx["request"] = _django_http_request_for_serializer(self.request)
+        return ctx
+
+    def post(self, request, *args, **kwargs):
+        try:
+            serializer = self.get_serializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
             return Response(
-                {"error": "Password reset غير متاح حالياً."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                {"detail": _("Password reset e-mail has been sent.")},
+                status=status.HTTP_200_OK,
+            )
+        except Exception:
+            print(traceback.format_exc())
+            return Response(
+                {"error": "تعذر إرسال بريد إعادة تعيين كلمة المرور. حاول لاحقاً."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 
