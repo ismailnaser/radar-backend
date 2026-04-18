@@ -1,7 +1,11 @@
 from django.db import models
 from django.conf import settings
 
-class Category(models.Model):
+from common.image_webp import WebPImageFieldsMixin
+
+
+class Category(WebPImageFieldsMixin, models.Model):
+    webp_image_fields = ('image',)
     name = models.CharField("اسم القسم", max_length=100)
     image = models.ImageField("صورة القسم", upload_to='categories/', null=True, blank=True)
 
@@ -20,9 +24,10 @@ class Service(models.Model):
         return self.name
 
 
-class CommunityServiceCategory(models.Model):
+class CommunityServiceCategory(WebPImageFieldsMixin, models.Model):
     """قسم من أقسام الخدمات المجتمعية — يمكن إضافة أقسام من لوحة Django admin."""
 
+    webp_image_fields = ('image',)
     name = models.CharField("اسم القسم", max_length=200)
     slug = models.SlugField("المعرّف", max_length=80, unique=True)
     image = models.ImageField("صورة القسم", upload_to='community_categories/', null=True, blank=True)
@@ -126,7 +131,8 @@ class CommunityServicePoint(models.Model):
     def __str__(self):
         return f'{self.title} ({self.get_status_display()})'
 
-class StoreProfile(models.Model):
+class StoreProfile(WebPImageFieldsMixin, models.Model):
+    webp_image_fields = ('logo',)
     user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='store_profile')
     store_name = models.CharField("اسم المتجر", max_length=200)
     description = models.TextField("وصف المتجر", blank=True)

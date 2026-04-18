@@ -4,7 +4,11 @@ from stores.models import StoreProfile
 from django.utils import timezone
 from datetime import timedelta
 
-class Product(models.Model):
+from common.image_webp import WebPImageFieldsMixin
+
+
+class Product(WebPImageFieldsMixin, models.Model):
+    webp_image_fields = ('image',)
     store = models.ForeignKey(StoreProfile, on_delete=models.CASCADE, related_name='products')
     name = models.CharField("اسم المنتج", max_length=200)
     price = models.DecimalField("السعر", max_digits=10, decimal_places=2)
@@ -23,7 +27,8 @@ class Product(models.Model):
         return self.name
 
 
-class ProductGalleryImage(models.Model):
+class ProductGalleryImage(WebPImageFieldsMixin, models.Model):
+    webp_image_fields = ('image',)
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='gallery_images')
     image = models.ImageField(upload_to='products/gallery/')
     sort_order = models.PositiveSmallIntegerField(default=0)
@@ -88,7 +93,8 @@ class StoreFavorite(models.Model):
     def __str__(self):
         return f"{self.user.phone_number} - {self.store.store_name}"
 
-class SponsoredAd(models.Model):
+class SponsoredAd(WebPImageFieldsMixin, models.Model):
+    webp_image_fields = ('image', 'payment_receipt_image')
     PAYMENT_BALIPAY = 'balipay_wallet'
     PAYMENT_BANK_PS = 'bank_palestine'
     PAYMENT_OTHER = 'other'
@@ -136,7 +142,8 @@ class SponsoredAd(models.Model):
         return self.title
 
 
-class SponsoredAdGalleryImage(models.Model):
+class SponsoredAdGalleryImage(WebPImageFieldsMixin, models.Model):
+    webp_image_fields = ('image',)
     sponsored_ad = models.ForeignKey(SponsoredAd, on_delete=models.CASCADE, related_name='gallery_images')
     image = models.ImageField(upload_to='ads/gallery/')
     sort_order = models.PositiveSmallIntegerField(default=0)
@@ -158,7 +165,8 @@ class Subscription(models.Model):
         return f"اشتراك {self.store.store_name}"
 
 
-class SubscriptionRenewalRequest(models.Model):
+class SubscriptionRenewalRequest(WebPImageFieldsMixin, models.Model):
+    webp_image_fields = ('receipt_image',)
     PAYMENT_BALIPAY = 'balipay_wallet'
     PAYMENT_BANK_PS = 'bank_palestine'
     PAYMENT_OTHER = 'other'

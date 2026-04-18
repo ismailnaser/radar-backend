@@ -32,6 +32,7 @@ class AdminAccountListSerializer(serializers.ModelSerializer):
         fields = (
             'id',
             'username',
+            'email',
             'phone_number',
             'is_primary_admin',
             'is_active',
@@ -44,6 +45,7 @@ class AdminAccountCreateSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=20)
     password = serializers.CharField(write_only=True)
     tier = serializers.ChoiceField(choices=('secondary', 'primary'))
+    email = serializers.EmailField(required=False, allow_blank=True, max_length=254)
 
     def validate_username(self, value):
         v = (value or '').strip()
@@ -66,6 +68,15 @@ class AdminAccountCreateSerializer(serializers.Serializer):
         except DjangoValidationError as e:
             raise serializers.ValidationError(list(e.messages))
         return pw
+
+    def validate_email(self, value):
+        v = (value or '').strip().lower()
+        if not v:
+            return ''
+        qs = User.objects.filter(email__iexact=v)
+        if qs.exists():
+            raise serializers.ValidationError('البريد الإلكتروني مسجّل مسبقاً.')
+        return v
 
 
 class RegisterSerializer(serializers.ModelSerializer):

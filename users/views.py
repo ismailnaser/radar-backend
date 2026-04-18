@@ -420,6 +420,7 @@ class PrimaryAdminAccountListCreateView(APIView):
         ser.is_valid(raise_exception=True)
         tier = ser.validated_data['tier']
         is_primary = tier == 'primary'
+        email = (ser.validated_data.get('email') or '').strip().lower()
         user = User.objects.create_user(
             username=ser.validated_data['username'],
             phone_number=ser.validated_data['phone_number'],
@@ -428,6 +429,7 @@ class PrimaryAdminAccountListCreateView(APIView):
             is_primary_admin=is_primary,
             is_staff=True,
             is_whatsapp_verified=True,
+            email=email,
         )
         return Response(
             AdminAccountListSerializer(user).data,
