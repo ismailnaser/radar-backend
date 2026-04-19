@@ -62,6 +62,178 @@ class MerchantProductListCreateView(generics.ListCreateAPIView):
         store = StoreProfile.objects.get(user=self.request.user)
         serializer.save(store=store)
 
+
+class MerchantProductExportExcelView(APIView):
+    """تصدير جميع منتجات التاجر الحالي إلى ملف Excel."""
+    permission_classes = [MerchantRequiredPermission]
+
+    def get(self, request):
+        import openpyxl
+        from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+        from django.http import HttpResponse
+        import json
+
+        store = StoreProfile.objects.get(user=request.user)
+        products = Product.objects.filter(store=store).order_by('id')
+
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = 'منتجاتي'
+        ws.sheet_view.rightToLeft = True
+
+        # Header styling
+        header_font = Font(name='Calibri', bold=True, size=12, color='1A1D26')
+        header_fill = PatternFill(start_color='FFCC00', end_color='FFCC00', fill_type='solid')
+        header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+        thin_border = Border(
+            left=Side(style='thin', color='E8E6E0'),
+            right=Side(style='thin', color='E8E6E0'),
+            top=Side(style='thin', color='E8E6E0'),
+            bottom=Side(style='thin', color='E8E6E0'),
+        )
+
+        headers = ['اسم المنتج', 'السعر', 'وصف المنتج', 'تفاصيل المنتج', 'الحالة']
+        for col_num, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col_num, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        # Column widths
+        ws.column_dimensions['A'].width = 30
+        ws.column_dimensions['B'].width = 15
+        ws.column_dimensions['C'].width = 50
+        ws.column_dimensions['D'].width = 40
+        ws.column_dimensions['E'].width = 12
+
+        data_font = Font(name='Calibri', size=11)
+        data_alignment = Alignment(horizontal='right', vertical='center', wrap_text=True)
+
+        for row_num, product in enumerate(products, 2):
+            features_str = ''
+            if product.product_features:
+                features_str = ' | '.join(product.product_features) if isinstance(product.product_features, list) else str(product.product_features)
+
+            row_data = [
+                product.name,
+                float(product.price),
+                product.description or '',
+                features_str,
+                'نشط' if not product.is_archived else 'مؤرشف',
+            ]
+            for col_num, value in enumerate(row_data, 1):
+                cell = ws.cell(row=row_num, column=col_num, value=value)
+                cell.font = data_font
+                cell.alignment = data_alignment
+                cell.border = thin_border
+
+        response = HttpResponse(
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        safe_name = (store.store_name or 'products').replace(' ', '_')[:30]
+        response['Content-Disposition'] = f'attachment; filename="radar_products_{safe_name}.xlsx"'
+        wb.save(response)
+        return response
+
+
+class MerchantProductImportExcelView(APIView):
+    """استيراد منتجات من ملف Excel — يُنشئ منتجات جديدة من كل صف."""
+    permission_classes = [MerchantRequiredPermission]
+
+    def post(self, request):
+        import openpyxl
+        from io import BytesIO
+
+        excel_file = request.FILES.get('file')
+        if not excel_file:
+            return Response(
+                {'error': 'يرجى رفع ملف Excel (.xlsx)'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate file extension
+        if not excel_file.name.lower().endswith(('.xlsx', '.xls')):
+            return Response(
+                {'error': 'صيغة الملف غير مدعومة. الرجاء رفع ملف بصيغة .xlsx'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            wb = openpyxl.load_workbook(BytesIO(excel_file.read()), read_only=True)
+        except Exception:
+            return Response(
+                {'error': 'تعذر قراءة الملف. تأكد أنه ملف Excel صالح (.xlsx)'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ws = wb.active
+        store = StoreProfile.objects.get(user=request.user)
+
+        # Detect header row
+        rows = list(ws.iter_rows(values_only=True))
+        if len(rows) < 2:
+            return Response(
+                {'error': 'الملف فارغ أو يحتوي فقط على صف العناوين. أضف منتجات بدءاً من الصف الثاني.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        created_count = 0
+        skipped_rows = []
+        errors = []
+
+        for row_idx, row in enumerate(rows[1:], start=2):
+            # Skip completely empty rows
+            if not row or all(cell is None or str(cell).strip() == '' for cell in row):
+                continue
+
+            # Extract cell values (columns: name, price, description, features)
+            name = str(row[0]).strip() if len(row) > 0 and row[0] is not None else ''
+            price_raw = row[1] if len(row) > 1 and row[1] is not None else ''
+            description = str(row[2]).strip() if len(row) > 2 and row[2] is not None else ''
+            features_raw = str(row[3]).strip() if len(row) > 3 and row[3] is not None else ''
+
+            if not name:
+                skipped_rows.append(f'صف {row_idx}: اسم المنتج مطلوب')
+                continue
+
+            # Parse price
+            try:
+                price_val = float(str(price_raw).replace(',', '').replace('₪', '').strip())
+                if price_val < 0:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                skipped_rows.append(f'صف {row_idx}: السعر غير صالح ({price_raw})')
+                continue
+
+            # Parse features
+            features_list = []
+            if features_raw:
+                features_list = [f.strip() for f in features_raw.split('|') if f.strip()][:5]
+
+            try:
+                Product.objects.create(
+                    store=store,
+                    name=name,
+                    price=price_val,
+                    description=description,
+                    product_features=features_list,
+                    is_archived=False,
+                )
+                created_count += 1
+            except Exception as e:
+                errors.append(f'صف {row_idx}: {str(e)[:60]}')
+
+        result = {
+            'message': f'تمت إضافة {created_count} منتج بنجاح.',
+            'created_count': created_count,
+        }
+        if skipped_rows:
+            result['skipped'] = skipped_rows
+        if errors:
+            result['errors'] = errors
+        return Response(result, status=status.HTTP_201_CREATED if created_count > 0 else status.HTTP_200_OK)
+
 class MerchantProductUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProductSerializer
     permission_classes = [MerchantRequiredPermission]

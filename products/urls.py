@@ -3,6 +3,8 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     MerchantProductListCreateView, 
     MerchantProductUpdateDeleteView, 
+    MerchantProductExportExcelView,
+    MerchantProductImportExcelView,
     AdRequestView, 
     MerchantAdUpdateDeleteView,
     AdminSponsoredAdListView,
@@ -31,6 +33,8 @@ router.register(r'store-favorites', StoreFavoriteViewSet, basename='storefavorit
 urlpatterns = [
     path('merchant/products/', MerchantProductListCreateView.as_view(), name='merchant_product_list'),
     path('merchant/products/<int:pk>/', MerchantProductUpdateDeleteView.as_view(), name='merchant_product_detail'),
+    path('merchant/products/export-excel/', MerchantProductExportExcelView.as_view(), name='merchant_product_export_excel'),
+    path('merchant/products/import-excel/', MerchantProductImportExcelView.as_view(), name='merchant_product_import_excel'),
     path('merchant/ads/', AdRequestView.as_view(), name='merchant_ad_request'),
     path('merchant/ads/<int:pk>/', MerchantAdUpdateDeleteView.as_view(), name='merchant_ad_detail'),
     path('admin/pending-counts/', AdminPendingCountsView.as_view(), name='admin_pending_counts'),
