@@ -15,6 +15,7 @@ from stores.models import (
     Category,
     CommunityServiceCategory,
     CommunityServicePoint,
+    Service,
     StoreProfile,
     StoreRating,
 )
@@ -151,20 +152,21 @@ class Command(BaseCommand):
             total_standalone_ads=ads_standalone_count,
         )
         self._ensure_subscriptions(stores)
+        self._ensure_legacy_services()
         self._ensure_community_services(demo_users.shopper, demo_users.admin)
         self._ensure_cart(demo_users.shopper, products)
         self._ensure_visitor_stats(stores)
 
         self.stdout.write(self.style.SUCCESS("Demo data seeded successfully."))
         self.stdout.write("Accounts created/ensured:")
-        self.stdout.write("  admin    username=demo_admin   password=demo12345  phone=+970590000001")
-        self.stdout.write("  shopper  username=demo_shopper  password=demo12345 phone=+970590000003")
+        self.stdout.write("  admin    username=ismail       password=123456      phone=+970590000001")
+        self.stdout.write("  shopper  username=demo_shopper  password=demo12345  phone=+970590000003")
         self.stdout.write(f"Stores ensured: {len(stores)} | Products ensured: {len(products)}")
 
     def _reset_demo_data(self) -> None:
         # Only remove objects we can confidently identify as demo.
         demo_usernames = (
-            ["demo_admin", "demo_shopper", "demo_merchant"]
+            ["ismail", "demo_admin", "demo_shopper", "demo_merchant"]
             + [f"demo_merchant_{i:02d}" for i in range(1, 51)]
         )
 
@@ -177,6 +179,7 @@ class Command(BaseCommand):
 
         # Community services
         CommunityServicePoint.objects.filter(submitted_by__username__in=demo_usernames).delete()
+        Service.objects.filter(name__startswith="خدمة تجريبية").delete()
 
         # Products/ads/subscription/store
         SponsoredAd.objects.filter(store__user__username__in=demo_usernames).delete()
@@ -197,21 +200,33 @@ class Command(BaseCommand):
 
     def _ensure_users(self) -> DemoUsers:
         admin = self._get_or_create_user(
-            username="demo_admin",
+            username="ismail",
             phone_number="+970590000001",
             user_type="admin",
+            password="123456",
             is_staff=True,
             is_superuser=True,
             is_primary_admin=True,
         )
+        # حساب قديم من نسخ سابقة من السيدر
+        User.objects.filter(username="demo_admin").delete()
         shopper = self._get_or_create_user(
             username="demo_shopper",
             phone_number="+970590000003",
             user_type="shopper",
+            password="demo12345",
         )
         return DemoUsers(admin=admin, shopper=shopper)
 
-    def _get_or_create_user(self, *, username: str, phone_number: str, user_type: str, **extra_fields):
+    def _get_or_create_user(
+        self,
+        *,
+        username: str,
+        phone_number: str,
+        user_type: str,
+        password: str = "demo12345",
+        **extra_fields,
+    ):
         user, created = User.objects.get_or_create(
             username=username,
             defaults={
@@ -232,9 +247,8 @@ class Command(BaseCommand):
                 setattr(user, k, v)
                 changed = True
 
-        # Ensure a usable password in demo environments.
-        if created or not user.check_password("demo12345"):
-            user.set_password("demo12345")
+        if created or not user.check_password(password):
+            user.set_password(password)
             changed = True
 
         if changed:
@@ -268,6 +282,7 @@ class Command(BaseCommand):
                 username=username,
                 phone_number=phone,
                 user_type="merchant",
+                password="demo12345",
             )
 
             name = STORE_NAMES_AR[(i - 1) % len(STORE_NAMES_AR)]
@@ -369,7 +384,7 @@ class Command(BaseCommand):
                 },
             )
 
-        # Standalone ads
+        # Standalone ads (نشطة ومعتمدة لتظهر كإعلانات ممولة في الواجهة)
         for i in range(1, max(0, total_standalone_ads) + 1):
             store = stores[(i - 1) % len(stores)]
             base_title = AD_TITLES_STANDALONE_AR[(i - 1) % len(AD_TITLES_STANDALONE_AR)]
@@ -380,7 +395,8 @@ class Command(BaseCommand):
                 defaults={
                     "description": "إعلان ممول مستقل ببيانات مفهومة للتجربة.",
                     "product_price": Decimal("15.00") + Decimal(i),
-                    "status": "pending",
+                    "status": "active",
+                    "approved_at": now,
                 },
             )
 
@@ -392,6 +408,19 @@ class Command(BaseCommand):
                     "end_date": timezone.now() + timezone.timedelta(days=30),
                     "is_active": True,
                 },
+            )
+
+    def _ensure_legacy_services(self) -> None:
+        """خدمات الجدول القديم Service (مسار /api/stores/services/ أو ما شابه)."""
+        samples = [
+            ("خدمة تجريبية — توصيل طوارئ", "توصيل سريع داخل المدينة (بيانات وهمية للعرض).", 31.50, 34.46),
+            ("خدمة تجريبية — صيانة منزلية", "صيانة سباكة وكهرباء (بيانات وهمية للعرض).", 31.51, 34.47),
+            ("خدمة تجريبية — نقل أثاث", "نقل وتركيب (بيانات وهمية للعرض).", 31.49, 34.45),
+        ]
+        for name, desc, lat, lng in samples:
+            Service.objects.get_or_create(
+                name=name,
+                defaults={"description": desc, "latitude": lat, "longitude": lng},
             )
 
     def _ensure_community_services(self, submitter: User, reviewer: User) -> None:
@@ -414,15 +443,15 @@ class Command(BaseCommand):
             },
         )
 
-        # One approved point
+        # نقاط معتمدة وقيد المراجعة (عناوين عربية)
         CommunityServicePoint.objects.get_or_create(
             category=water_cat,
-            title="Demo Water Point",
+            title="نقطة مياه الشفاء (تجريبي)",
             defaults={
-                "detail_description": "نقطة توزيع مياه تجريبية.",
+                "detail_description": "نقطة توزيع مياه تجريبية مع صلاحية شرب معلنة.",
                 "latitude": 31.51,
                 "longitude": 34.47,
-                "address_text": "غزة - نقطة تجريبية",
+                "address_text": "غزة - حي الرمال - نقطة تجريبية",
                 "water_is_potable": True,
                 "status": CommunityServicePoint.STATUS_APPROVED,
                 "is_hidden_by_admin": False,
@@ -432,15 +461,31 @@ class Command(BaseCommand):
             },
         )
 
-        # One pending point
         CommunityServicePoint.objects.get_or_create(
             category=inst_cat,
-            title="Demo Institution",
+            title="جمعية خيرية الأمل (تجريبي)",
             defaults={
-                "detail_description": "مؤسسة مجتمعية تجريبية.",
+                "detail_description": "مؤسسة مجتمعية تجريبية لاختبار الخريطة والوصف.",
                 "latitude": 31.49,
                 "longitude": 34.45,
                 "address_text": "غزة - مؤسسة تجريبية",
+                "institution_scope": CommunityServicePoint.INSTITUTION_CHARITY,
+                "status": CommunityServicePoint.STATUS_APPROVED,
+                "is_hidden_by_admin": False,
+                "submitted_by": submitter,
+                "reviewed_by": reviewer,
+                "reviewed_at": timezone.now(),
+            },
+        )
+
+        CommunityServicePoint.objects.get_or_create(
+            category=inst_cat,
+            title="طلب مراجعة — مركز شباب (تجريبي)",
+            defaults={
+                "detail_description": "نقطة قيد الموافقة لاختبار حالة الانتظار.",
+                "latitude": 31.505,
+                "longitude": 34.455,
+                "address_text": "غزة - مركز شباب تجريبي",
                 "institution_scope": CommunityServicePoint.INSTITUTION_LOCAL,
                 "status": CommunityServicePoint.STATUS_PENDING,
                 "is_hidden_by_admin": False,

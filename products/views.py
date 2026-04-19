@@ -513,12 +513,19 @@ class PublicAdListView(generics.ListAPIView):
         )
         raw_cat = self.request.query_params.get('category')
         if raw_cat is not None and str(raw_cat).strip() != '':
-            try:
-                cid = int(raw_cat)
-                if cid > 0:
-                    qs = qs.filter(store__category_id=cid)
-            except (TypeError, ValueError):
-                pass
+            parts = [p.strip() for p in str(raw_cat).split(',') if p.strip()]
+            ids = []
+            for p in parts:
+                try:
+                    cid = int(p)
+                    if cid > 0:
+                        ids.append(cid)
+                except (TypeError, ValueError):
+                    continue
+            if len(ids) == 1:
+                qs = qs.filter(store__category_id=ids[0])
+            elif len(ids) > 1:
+                qs = qs.filter(store__category_id__in=ids)
         return qs
 
     def get_serializer_context(self):

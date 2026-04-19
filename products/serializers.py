@@ -261,6 +261,8 @@ class StoreFavoriteSerializer(serializers.ModelSerializer):
 
 class SponsoredAdSerializer(serializers.ModelSerializer):
     store_name = serializers.ReadOnlyField(source='store.store_name')
+    store_category_id = serializers.SerializerMethodField()
+    store_category_name = serializers.SerializerMethodField()
     payment_method_label = serializers.SerializerMethodField(read_only=True)
     product_details = ProductSerializer(source='product', read_only=True)
     product = serializers.PrimaryKeyRelatedField(
@@ -278,6 +280,8 @@ class SponsoredAdSerializer(serializers.ModelSerializer):
             'id',
             'store',
             'store_name',
+            'store_category_id',
+            'store_category_name',
             'product',
             'product_details',
             'title',
@@ -296,6 +300,13 @@ class SponsoredAdSerializer(serializers.ModelSerializer):
 
     def get_payment_method_label(self, obj):
         return obj.get_payment_method_display()
+
+    def get_store_category_id(self, obj):
+        return getattr(obj.store, 'category_id', None)
+
+    def get_store_category_name(self, obj):
+        c = getattr(obj.store, 'category', None)
+        return c.name if c else None
 
     def get_images(self, obj):
         return sponsored_ad_gallery_urls(obj, self.context.get('request'))
