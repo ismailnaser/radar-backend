@@ -242,9 +242,17 @@ class StoreProfileSerializer(serializers.ModelSerializer):
                     except json.JSONDecodeError:
                         raise serializers.ValidationError({key: 'صيغة JSON غير صالحة.'})
 
+        lat_in_payload = 'latitude' in attrs
+        lng_in_payload = 'longitude' in attrs
         lat = attrs.get('latitude', getattr(self.instance, 'latitude', None) if self.instance else None)
         lng = attrs.get('longitude', getattr(self.instance, 'longitude', None) if self.instance else None)
-        if lat is not None and lng is not None:
+        # موقع المتجر اختياري؛ لا نفعّل فحص الإحداثيات إلا عند إرسالها صراحة.
+        should_validate_coords = (
+            (lat_in_payload or lng_in_payload)
+            and lat is not None
+            and lng is not None
+        )
+        if should_validate_coords:
             try:
                 lat_f = float(lat)
                 lng_f = float(lng)
