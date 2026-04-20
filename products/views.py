@@ -93,7 +93,7 @@ class MerchantProductExportExcelView(APIView):
             bottom=Side(style='thin', color='E8E6E0'),
         )
 
-        headers = ['اسم المنتج', 'السعر', 'وصف المنتج', 'تفاصيل المنتج', 'الحالة']
+        headers = ['اسم المنتج', 'السعر', 'وصف المنتج', 'تفاصيل المنتج', 'صور المنتج']
         for col_num, header in enumerate(headers, 1):
             cell = ws.cell(row=1, column=col_num, value=header)
             cell.font = header_font
@@ -106,7 +106,7 @@ class MerchantProductExportExcelView(APIView):
         ws.column_dimensions['B'].width = 15
         ws.column_dimensions['C'].width = 50
         ws.column_dimensions['D'].width = 40
-        ws.column_dimensions['E'].width = 12
+        ws.column_dimensions['E'].width = 36
 
         data_font = Font(name='Calibri', size=11)
         data_alignment = Alignment(horizontal='right', vertical='center', wrap_text=True)
@@ -121,7 +121,7 @@ class MerchantProductExportExcelView(APIView):
                 float(product.price),
                 product.description or '',
                 features_str,
-                'نشط' if not product.is_archived else 'مؤرشف',
+                '',
             ]
             for col_num, value in enumerate(row_data, 1):
                 cell = ws.cell(row=row_num, column=col_num, value=value)
