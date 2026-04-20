@@ -5,7 +5,7 @@ from django.shortcuts import get_object_or_404
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Product, SponsoredAd, Subscription, Favorite, StoreFavorite, SubscriptionRenewalRequest
+from .models import Product, ProductGalleryImage, SponsoredAd, Subscription, Favorite, StoreFavorite, SubscriptionRenewalRequest
 from .serializers import (
     ProductSerializer,
     SponsoredAdSerializer,
@@ -28,6 +28,7 @@ from django.db.models import Q, Sum
 from rest_framework.exceptions import PermissionDenied
 
 from .ad_lifecycle import purge_expired_sponsored_ads
+from common.image_webp import image_file_to_webp_content
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +144,7 @@ class MerchantProductImportExcelView(APIView):
 
     def post(self, request):
         import openpyxl
+        import os
         from io import BytesIO
 
         excel_file = request.FILES.get('file')
@@ -169,6 +171,13 @@ class MerchantProductImportExcelView(APIView):
 
         ws = wb.active
         store = StoreProfile.objects.get(user=request.user)
+        uploaded_images = request.FILES.getlist('images')
+        image_by_name = {}
+        for f in uploaded_images:
+            # Case-insensitive filename matching (including extension case, e.g. IMG1.JPG == img1.jpg)
+            nm = os.path.basename(str(getattr(f, 'name', '') or '')).strip().casefold()
+            if nm and nm not in image_by_name:
+                image_by_name[nm] = f
 
         # Detect header row
         rows = list(ws.iter_rows(values_only=True))
@@ -187,11 +196,12 @@ class MerchantProductImportExcelView(APIView):
             if not row or all(cell is None or str(cell).strip() == '' for cell in row):
                 continue
 
-            # Extract cell values (columns: name, price, description, features)
+            # Extract cell values (columns: name, price, description, features, images)
             name = str(row[0]).strip() if len(row) > 0 and row[0] is not None else ''
             price_raw = row[1] if len(row) > 1 and row[1] is not None else ''
             description = str(row[2]).strip() if len(row) > 2 and row[2] is not None else ''
             features_raw = str(row[3]).strip() if len(row) > 3 and row[3] is not None else ''
+            images_raw = str(row[4]).strip() if len(row) > 4 and row[4] is not None else ''
 
             if not name:
                 skipped_rows.append(f'صف {row_idx}: اسم المنتج مطلوب')
@@ -211,8 +221,32 @@ class MerchantProductImportExcelView(APIView):
             if features_raw:
                 features_list = [f.strip() for f in features_raw.split('|') if f.strip()][:5]
 
+            # Parse image names (optional): match against uploaded files by filename.
+            matched_image_files = []
+            missing_image_names = []
+            if images_raw:
+                seen = set()
+                for raw_part in images_raw.split('|'):
+                    part = raw_part.strip()
+                    if not part:
+                        continue
+                    key = os.path.basename(part).strip().casefold()
+                    if not key or key in seen:
+                        continue
+                    seen.add(key)
+                    f = image_by_name.get(key)
+                    if f is not None:
+                        matched_image_files.append(f)
+                    else:
+                        missing_image_names.append(part)
+                matched_image_files = matched_image_files[:5]
+                if missing_image_names:
+                    skipped_rows.append(
+                        f"صف {row_idx}: بعض الصور غير موجودة ضمن الملفات المرفوعة ({', '.join(missing_image_names[:3])})"
+                    )
+
             try:
-                Product.objects.create(
+                product = Product.objects.create(
                     store=store,
                     name=name,
                     price=price_val,
@@ -220,6 +254,16 @@ class MerchantProductImportExcelView(APIView):
                     product_features=features_list,
                     is_archived=False,
                 )
+                if matched_image_files:
+                    for i, img_file in enumerate(matched_image_files):
+                        # Convert to WebP before linking to the product gallery.
+                        webp_file = image_file_to_webp_content(img_file)
+                        final_file = webp_file or img_file
+                        ProductGalleryImage.objects.create(
+                            product=product,
+                            image=final_file,
+                            sort_order=i,
+                        )
                 created_count += 1
             except Exception as e:
                 errors.append(f'صف {row_idx}: {str(e)[:60]}')
