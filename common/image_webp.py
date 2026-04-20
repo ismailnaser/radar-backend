@@ -9,9 +9,15 @@ from django.core.files.base import ContentFile
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 DEFAULT_WEBP_QUALITY = 80
+DEFAULT_MAX_WIDTH = 800
 
 
-def image_file_to_webp_content(django_file, *, quality: int = DEFAULT_WEBP_QUALITY) -> ContentFile | None:
+def image_file_to_webp_content(
+    django_file,
+    *,
+    quality: int = DEFAULT_WEBP_QUALITY,
+    max_width: int = DEFAULT_MAX_WIDTH,
+) -> ContentFile | None:
     """
     يقرأ ملف صورة (UploadedFile / مفتوح من FieldFile) ويعيد ContentFile باسم ينتهي بـ .webp
     """
@@ -43,6 +49,11 @@ def image_file_to_webp_content(django_file, *, quality: int = DEFAULT_WEBP_QUALI
             img = img.convert('RGB')
         elif img.mode not in ('RGB', 'RGBA'):
             img = img.convert('RGB')
+
+        if isinstance(max_width, int) and max_width > 0 and img.width > max_width:
+            new_height = max(1, int(round((img.height * max_width) / img.width)))
+            resample = getattr(Image, "Resampling", Image).LANCZOS
+            img = img.resize((max_width, new_height), resample)
 
         out = BytesIO()
         save_kw = dict(format='WEBP', quality=quality, method=6)

@@ -102,6 +102,7 @@ if _use_do_spaces:
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    'common.middleware.StaticMediaCacheControlMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -178,6 +179,9 @@ _staticfiles_backend = (
     else 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 )
 STATICFILES_STORAGE = _staticfiles_backend
+WHITENOISE_MANIFEST_STRICT = False
+WHITENOISE_KEEP_ONLY_HASHED_FILES = True
+WHITENOISE_MAX_AGE = 31536000
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
