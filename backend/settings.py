@@ -203,7 +203,10 @@ if _use_do_spaces:
     AWS_DEFAULT_ACL = 'public-read'
     # روابط مباشرة للملفات (بدون ?X-Amz-...)
     AWS_QUERYSTRING_AUTH = False
-    AWS_S3_OBJECT_PARAMETERS = {'ACL': 'public-read'}
+    AWS_S3_OBJECT_PARAMETERS = {
+        'ACL': 'public-read',
+        'CacheControl': 'public, max-age=31536000, immutable',
+    }
 
     def _host_from_url(value: str) -> str:
         u = value.strip().rstrip('/')
