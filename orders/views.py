@@ -73,6 +73,7 @@ class CartItemCreateView(generics.CreateAPIView):
         product = serializer.validated_data.get('product')
         quantity = serializer.validated_data['quantity']
         sa = serializer.validated_data.get('sponsored_ad')
+        incoming_note = serializer.validated_data.get('note')
         if cart.user_id != request.user.id:
             return Response({'detail': 'غير مصرح'}, status=status.HTTP_403_FORBIDDEN)
         if product is not None:
@@ -84,6 +85,9 @@ class CartItemCreateView(generics.CreateAPIView):
         if existing:
             existing.quantity += quantity
             upd = ['quantity']
+            if incoming_note is not None:
+                existing.note = incoming_note
+                upd.append('note')
             if sa is not None:
                 existing.sponsored_ad = sa
                 existing.sponsored_unit_price = sa.product_price

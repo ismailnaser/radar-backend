@@ -16,6 +16,8 @@ class CartItemSerializer(serializers.ModelSerializer):
     line_image = serializers.SerializerMethodField()
     line_images = serializers.SerializerMethodField()
     is_standalone_ad_line = serializers.SerializerMethodField()
+    line_store_name = serializers.SerializerMethodField()
+    line_store_id = serializers.SerializerMethodField()
     product = serializers.PrimaryKeyRelatedField(
         queryset=Product.objects.all(),
         required=False,
@@ -47,6 +49,8 @@ class CartItemSerializer(serializers.ModelSerializer):
             'line_image',
             'line_images',
             'is_standalone_ad_line',
+            'line_store_name',
+            'line_store_id',
             'standalone_line_title',
             'quantity',
             'note',
@@ -83,6 +87,18 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     def get_is_standalone_ad_line(self, obj):
         return obj.product_id is None
+
+    def get_line_store_name(self, obj):
+        if obj.product_id:
+            return getattr(getattr(obj.product, 'store', None), 'store_name', '') or ''
+        sa = getattr(obj, 'sponsored_ad', None)
+        return getattr(getattr(sa, 'store', None), 'store_name', '') or ''
+
+    def get_line_store_id(self, obj):
+        if obj.product_id:
+            return getattr(obj.product, 'store_id', None)
+        sa = getattr(obj, 'sponsored_ad', None)
+        return getattr(sa, 'store_id', None)
 
     def get_catalog_unit_price(self, obj):
         if obj.product_id:
