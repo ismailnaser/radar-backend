@@ -281,6 +281,23 @@ def _unique_username_from_email(email: str) -> str:
     return f"{base[:140]}{secrets.token_hex(5)}"[:150]
 
 
+def _looks_like_system_generated_phone(raw) -> bool:
+    s = str(raw or "").strip().lower()
+    return bool(re.fullmatch(r"r[a-f0-9]{18}", s))
+
+
+def _safe_phone(raw):
+    val = str(raw or "").strip()
+    if not val or _looks_like_system_generated_phone(val):
+        return None
+    return val
+
+
+def _safe_email(raw):
+    val = str(raw or "").strip()
+    return val or None
+
+
 class GoogleIdTokenLoginView(APIView):
     """
     GSI Popup flow: frontend sends Google ID token (credential) as id_token.
@@ -538,6 +555,7 @@ class AdminUserSearchView(APIView):
             qs = qs.filter(
                 Q(username__icontains=q)
                 | Q(phone_number__icontains=q)
+                | Q(email__icontains=q)
             )
         out = []
         # حد بسيط لتفادي رد ضخم
@@ -546,7 +564,8 @@ class AdminUserSearchView(APIView):
                 {
                     'id': u.id,
                     'username': u.username,
-                    'phone_number': u.phone_number,
+                    'phone_number': _safe_phone(getattr(u, 'phone_number', '')),
+                    'email': _safe_email(getattr(u, 'email', '')),
                     'user_type': u.user_type,
                     'is_active': bool(u.is_active),
                     'is_whatsapp_verified': bool(getattr(u, 'is_whatsapp_verified', False)),

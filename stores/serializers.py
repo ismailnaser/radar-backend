@@ -1,4 +1,5 @@
 import json
+import re
 
 from rest_framework import serializers
 from datetime import timedelta
@@ -377,7 +378,8 @@ class PrimaryAdminStoreRowSerializer(serializers.ModelSerializer):
     """صف واحد لكل متجر — للمدير الأساسي (بحث، خريطة، جوال، اشتراك، تعليق)."""
 
     merchant_username = serializers.CharField(source='user.username', read_only=True)
-    merchant_phone = serializers.CharField(source='user.phone_number', read_only=True)
+    merchant_phone = serializers.SerializerMethodField()
+    merchant_email = serializers.SerializerMethodField()
     category_name = serializers.SerializerMethodField()
     category_id = serializers.IntegerField(source='category.id', read_only=True)
     categories = serializers.SerializerMethodField()
@@ -404,6 +406,7 @@ class PrimaryAdminStoreRowSerializer(serializers.ModelSerializer):
             'categories_names',
             'merchant_username',
             'merchant_phone',
+            'merchant_email',
             'subscription_end_date',
             'subscription_is_active',
             'is_suspended_by_admin',
@@ -427,6 +430,19 @@ class PrimaryAdminStoreRowSerializer(serializers.ModelSerializer):
             return [c.name for c in obj.categories.all()]
         except Exception:
             return []
+
+    def _looks_like_system_generated_phone(self, raw):
+        s = str(raw or '').strip().lower()
+        return bool(re.fullmatch(r'r[a-f0-9]{18}', s))
+
+    def get_merchant_phone(self, obj):
+        raw = getattr(getattr(obj, 'user', None), 'phone_number', '') or ''
+        return None if self._looks_like_system_generated_phone(raw) else raw
+
+    def get_merchant_email(self, obj):
+        email = getattr(getattr(obj, 'user', None), 'email', '') or ''
+        email = str(email).strip()
+        return email or None
 
     def _subscription(self, obj):
         try:
