@@ -1,3 +1,5 @@
+import json
+
 from django.db import DatabaseError
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -492,3 +494,66 @@ class MerchantStoreProfileView(generics.RetrieveUpdateAPIView):
         if self.request.method == 'GET':
             return StoreProfileDetailSerializer
         return StoreProfileSerializer
+
+    def _normalize_categories_payload(self, data):
+        """
+        يقبل categories بعدة صيغ (multipart/json):
+        - categories=1&categories=2
+        - categories="[1,2]"
+        - categories="1,2"
+        """
+        if not hasattr(data, 'copy'):
+            return data
+
+        payload = data.copy()
+        raw_vals = payload.getlist('categories') if hasattr(payload, 'getlist') else [payload.get('categories')]
+        if not raw_vals:
+            return payload
+
+        normalized = []
+        for raw in raw_vals:
+            if raw is None:
+                continue
+            items = []
+            if isinstance(raw, (list, tuple)):
+                items = list(raw)
+            elif isinstance(raw, str):
+                s = raw.strip()
+                if not s:
+                    continue
+                if s.startswith('[') and s.endswith(']'):
+                    try:
+                        arr = json.loads(s)
+                    except json.JSONDecodeError:
+                        arr = [s]
+                    items = arr if isinstance(arr, list) else [arr]
+                elif ',' in s:
+                    items = [p.strip() for p in s.split(',') if p.strip()]
+                else:
+                    items = [s]
+            else:
+                items = [raw]
+
+            for it in items:
+                try:
+                    n = int(str(it).strip())
+                except (TypeError, ValueError):
+                    continue
+                normalized.append(str(n))
+
+        # إزالة التكرار مع الحفاظ على الترتيب
+        deduped = list(dict.fromkeys(normalized))
+        if hasattr(payload, 'setlist'):
+            payload.setlist('categories', deduped)
+        else:
+            payload['categories'] = deduped
+        return payload
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+        data = self._normalize_categories_payload(request.data)
+        serializer = self.get_serializer(instance, data=data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
