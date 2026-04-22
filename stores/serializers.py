@@ -379,6 +379,9 @@ class PrimaryAdminStoreRowSerializer(serializers.ModelSerializer):
     merchant_username = serializers.CharField(source='user.username', read_only=True)
     merchant_phone = serializers.CharField(source='user.phone_number', read_only=True)
     category_name = serializers.SerializerMethodField()
+    category_id = serializers.IntegerField(source='category.id', read_only=True)
+    categories = serializers.SerializerMethodField()
+    categories_names = serializers.SerializerMethodField()
     subscription_end_date = serializers.SerializerMethodField()
     subscription_is_active = serializers.SerializerMethodField()
     is_publicly_visible = serializers.SerializerMethodField()
@@ -395,7 +398,10 @@ class PrimaryAdminStoreRowSerializer(serializers.ModelSerializer):
             'latitude',
             'longitude',
             'location_address',
+            'category_id',
             'category_name',
+            'categories',
+            'categories_names',
             'merchant_username',
             'merchant_phone',
             'subscription_end_date',
@@ -409,6 +415,18 @@ class PrimaryAdminStoreRowSerializer(serializers.ModelSerializer):
 
     def get_category_name(self, obj):
         return obj.category.name if obj.category_id else None
+
+    def get_categories(self, obj):
+        try:
+            return list(obj.categories.values_list('id', flat=True))
+        except Exception:
+            return []
+
+    def get_categories_names(self, obj):
+        try:
+            return [c.name for c in obj.categories.all()]
+        except Exception:
+            return []
 
     def _subscription(self, obj):
         try:

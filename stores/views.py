@@ -190,7 +190,7 @@ class PrimaryAdminStoreListView(generics.ListAPIView):
 
     def get_queryset(self):
         qs = (
-            StoreProfile.objects.select_related('user', 'category', 'subscription')
+            StoreProfile.objects.select_related('user', 'category', 'subscription').prefetch_related('categories')
             .all()
             .annotate(rating_avg=Avg('ratings__stars'), rating_n=Count('ratings', distinct=True))
             .order_by('store_name', 'id')
@@ -208,7 +208,7 @@ class PrimaryAdminStoreListView(generics.ListAPIView):
             try:
                 cid = int(raw_cat)
                 if cid > 0:
-                    qs = qs.filter(category_id=cid)
+                    qs = qs.filter(Q(category_id=cid) | Q(categories__id=cid)).distinct()
             except (TypeError, ValueError):
                 pass
         return qs
@@ -243,6 +243,55 @@ class PrimaryAdminStoreSuspendView(generics.GenericAPIView):
             )
         store.is_suspended_by_admin = bool(suspended)
         store.save(update_fields=['is_suspended_by_admin'])
+        return Response(PrimaryAdminStoreRowSerializer(store, context={'request': request}).data)
+
+
+class PrimaryAdminStoreCategoriesUpdateView(generics.GenericAPIView):
+    """تعديل أقسام متجر محدد (single + multi) من المدير الأساسي."""
+
+    permission_classes = [PrimaryAdminPermission]
+    parser_classes = [JSONParser, FormParser, MultiPartParser]
+
+    def patch(self, request, pk):
+        store = get_object_or_404(StoreProfile.objects.prefetch_related('categories'), pk=pk)
+        raw_categories = request.data.get('categories', [])
+
+        if isinstance(raw_categories, str):
+            s = raw_categories.strip()
+            if s.startswith('[') and s.endswith(']'):
+                try:
+                    raw_categories = json.loads(s)
+                except json.JSONDecodeError:
+                    raw_categories = []
+            elif ',' in s:
+                raw_categories = [p.strip() for p in s.split(',') if p.strip()]
+            elif s:
+                raw_categories = [s]
+            else:
+                raw_categories = []
+        elif raw_categories is None:
+            raw_categories = []
+
+        if not isinstance(raw_categories, (list, tuple)):
+            return Response({'error': 'الحقل categories يجب أن يكون قائمة معرفات.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        ids = []
+        for value in raw_categories:
+            try:
+                n = int(str(value).strip())
+            except (TypeError, ValueError):
+                continue
+            if n > 0:
+                ids.append(n)
+        ids = list(dict.fromkeys(ids))
+
+        categories = list(Category.objects.filter(id__in=ids))
+        if ids and len(categories) != len(ids):
+            return Response({'error': 'بعض الأقسام غير موجودة.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        store.categories.set(categories)
+        store.category = categories[0] if categories else None
+        store.save(update_fields=['category'])
         return Response(PrimaryAdminStoreRowSerializer(store, context={'request': request}).data)
 
 

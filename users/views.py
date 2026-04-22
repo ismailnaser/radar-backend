@@ -563,15 +563,47 @@ class AdminUserToggleActiveView(APIView):
 
     def patch(self, request, pk):
         target = get_object_or_404(User, pk=pk)
-        active = request.data.get('is_active')
-        if active is None:
-            return Response({'error': 'أرسل الحقل is_active (true/false).'}, status=status.HTTP_400_BAD_REQUEST)
-        target.is_active = bool(active)
-        target.save(update_fields=['is_active'])
+        update_fields = []
+
+        requested_user_type = (request.data.get('user_type') or '').strip().lower()
+        if requested_user_type:
+            if requested_user_type != 'merchant':
+                return Response({'error': 'حالياً يسمح فقط بتحويل الحساب إلى تاجر.'}, status=status.HTTP_400_BAD_REQUEST)
+            if target.user_type == 'admin':
+                return Response({'error': 'لا يمكن تحويل حساب مدير إلى تاجر من هذه الشاشة.'}, status=status.HTTP_400_BAD_REQUEST)
+            if target.user_type != 'merchant':
+                target.user_type = 'merchant'
+                target.merchant_profile_complete = False
+                update_fields.extend(['user_type', 'merchant_profile_complete'])
+
+        if 'is_active' in request.data:
+            target.is_active = bool(request.data.get('is_active'))
+            update_fields.append('is_active')
+
+        if not update_fields:
+            return Response(
+                {'error': 'أرسل user_type=merchant أو is_active (true/false).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        target.save(update_fields=list(dict.fromkeys(update_fields)))
 
         if getattr(target, 'user_type', None) == 'merchant':
-            store = StoreProfile.objects.filter(user=target).first()
-            if store:
+            store, created = StoreProfile.objects.get_or_create(
+                user=target,
+                defaults={
+                    'store_name': f"متجر {target.username}",
+                    'description': '',
+                    'location_address': '',
+                    'latitude': None,
+                    'longitude': None,
+                },
+            )
+            if created:
+                from stores.subscription_visibility import create_trial_subscription_for_store
+
+                create_trial_subscription_for_store(store)
+            if 'is_active' in request.data:
                 store.is_suspended_by_admin = not target.is_active
                 store.save(update_fields=['is_suspended_by_admin'])
 
