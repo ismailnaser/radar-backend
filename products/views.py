@@ -523,6 +523,21 @@ class PublicProductListView(generics.ListAPIView):
 
     def get_queryset(self):
         base = Product.objects.filter(is_archived=False).select_related('store')
+        raw_cat = self.request.query_params.get('category')
+        if raw_cat is not None and str(raw_cat).strip() != '':
+            parts = [p.strip() for p in str(raw_cat).split(',') if p.strip()]
+            ids = []
+            for p in parts:
+                try:
+                    cid = int(p)
+                    if cid > 0:
+                        ids.append(cid)
+                except (TypeError, ValueError):
+                    continue
+            if len(ids) == 1:
+                base = base.filter(store__category_id=ids[0])
+            elif len(ids) > 1:
+                base = base.filter(store__category_id__in=ids)
         store_id = self.request.query_params.get('store_id')
         if store_id is not None and str(store_id).strip() != '':
             try:

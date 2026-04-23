@@ -68,6 +68,8 @@ def assert_sponsored_ad_matches_product(ad, product):
 
 class ProductSerializer(serializers.ModelSerializer):
     store_name = serializers.ReadOnlyField(source='store.store_name')
+    store_category_id = serializers.ReadOnlyField(source='store.category_id')
+    store_category_name = serializers.ReadOnlyField(source='store.category.name')
     images = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
@@ -76,6 +78,8 @@ class ProductSerializer(serializers.ModelSerializer):
             'id',
             'store',
             'store_name',
+            'store_category_id',
+            'store_category_name',
             'name',
             'price',
             'description',
