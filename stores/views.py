@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 
 from django.db import DatabaseError
 from django.shortcuts import get_object_or_404
@@ -35,7 +36,7 @@ from .serializers import (
     PrimaryAdminStoreRowSerializer,
 )
 from django.db.models import F
-from products.models import Product, SponsoredAd
+from products.models import Product, SponsoredAd, Subscription
 from products.views import AdminRequiredPermission
 from math import radians, cos, sin, asin, sqrt
 
@@ -292,6 +293,40 @@ class PrimaryAdminStoreCategoriesUpdateView(generics.GenericAPIView):
         store.categories.set(categories)
         store.category = categories[0] if categories else None
         store.save(update_fields=['category'])
+        return Response(PrimaryAdminStoreRowSerializer(store, context={'request': request}).data)
+
+
+class PrimaryAdminStoreRenewSubscriptionView(generics.GenericAPIView):
+    """تجديد اشتراك متجر من المدير الأساسي (افتراضي 30 يوم)."""
+
+    permission_classes = [PrimaryAdminPermission]
+
+    def post(self, request, pk):
+        store = get_object_or_404(StoreProfile.objects.select_related('subscription'), pk=pk)
+
+        raw_days = request.data.get('days', 30)
+        try:
+            days = int(raw_days)
+        except (TypeError, ValueError):
+            return Response({'error': 'الحقل days يجب أن يكون رقماً صحيحاً.'}, status=status.HTTP_400_BAD_REQUEST)
+        if days <= 0 or days > 3650:
+            return Response({'error': 'days يجب أن يكون بين 1 و 3650.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        now = timezone.now()
+        subscription, _created = Subscription.objects.get_or_create(
+            store=store,
+            defaults={
+                'end_date': now,
+                'is_active': True,
+            },
+        )
+        base = subscription.end_date if subscription.end_date and subscription.end_date > now else now
+        subscription.end_date = base + timedelta(days=days)
+        subscription.is_active = True
+        subscription.save(update_fields=['end_date', 'is_active'])
+
+        # مخرجات نفس صف الإدارة حتى ينعكس التحديث فوراً في الجدول.
+        store.refresh_from_db()
         return Response(PrimaryAdminStoreRowSerializer(store, context={'request': request}).data)
 
 
